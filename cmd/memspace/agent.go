@@ -9,10 +9,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 
 	"github.com/chux0519/memspace/internal/adapter"
 	"github.com/chux0519/memspace/internal/adapter/claudecode"
@@ -21,6 +23,7 @@ import (
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/inject"
+	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/syncer"
 )
 
@@ -280,6 +283,9 @@ func clientChecks(ctx context.Context, cfg *config.Config) []adapter.Check {
 			checks = append(checks, adapter.Check{Name: "server", Status: status, Detail: detail})
 		} else {
 			checks = append(checks, adapter.Check{Name: "server", Status: adapter.OK, Detail: url + " (token valid)"})
+			if sv, err := client.New(url, creds.Token).ServerVersion(ctx); err == nil {
+				checks = append(checks, versionCheck(model.BuildVersion(), sv))
+			}
 			checks = append(checks, semanticCheck(ctx, client.New(url, creds.Token)))
 		}
 	}
@@ -569,6 +575,28 @@ func importCmd() *cobra.Command {
 	dshCmd.Flags().BoolVar(&dshAll, "all", false, "import all history")
 	cmd.AddCommand(codexCmd, dshCmd)
 	return cmd
+}
+
+// versionCheck compares this client with the server. Only release builds
+// are compared; an older client is told how to upgrade.
+func versionCheck(client, server string) adapter.Check {
+	name := "version"
+	detail := fmt.Sprintf("client %s, server %s", client, server)
+	if !model.IsRelease(client) || !model.IsRelease(server) {
+		return adapter.Check{Name: name, Status: adapter.OK, Detail: detail}
+	}
+	if semver.Compare(client, server) < 0 {
+		return adapter.Check{Name: name, Status: adapter.Warn, Detail: detail +
+			"; upgrade the client: re-run the install script (" + installHint() + ")"}
+	}
+	return adapter.Check{Name: name, Status: adapter.OK, Detail: detail}
+}
+
+func installHint() string {
+	if runtime.GOOS == "windows" {
+		return "irm https://raw.githubusercontent.com/" + model.ReleaseRepo + "/main/install.ps1 | iex"
+	}
+	return "curl -fsSL https://raw.githubusercontent.com/" + model.ReleaseRepo + "/main/install.sh | sh"
 }
 
 func semanticCheck(ctx context.Context, c *client.Client) adapter.Check {

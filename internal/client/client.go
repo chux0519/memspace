@@ -291,6 +291,18 @@ func (c *Client) ReportSync(ctx context.Context, rep model.SyncReport) error {
 }
 
 // Health calls GET /api/v1/health (no auth required).
+// ServerVersion returns the version the server reports ("" for servers
+// that predate reporting it).
+func (c *Client) ServerVersion(ctx context.Context) (string, error) {
+	var resp struct {
+		Version string `json:"version"`
+	}
+	if err := c.do(ctx, "GET", "/api/v1/health", nil, &resp); err != nil {
+		return "", err
+	}
+	return resp.Version, nil
+}
+
 func (c *Client) Health(ctx context.Context) (string, error) {
 	var resp struct {
 		Status string `json:"status"`

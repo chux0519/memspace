@@ -112,22 +112,31 @@ function agentPrompt(invite: CreatedInvite) {
   )
 }
 
-function setupCommands(p: (typeof platforms)[number], invite: CreatedInvite, downloads: ClientDownload[]) {
+// Release builds are installed from GitHub with the install scripts; the
+// version matches this server's when it is a release.
+const installScripts = 'https://raw.githubusercontent.com/chux0519/memspace/main'
+const isRelease = (v?: string) => !!v && /^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(v) && !/\d{14}-[0-9a-f]{12}$/.test(v)
+
+function setupCommands(p: (typeof platforms)[number], invite: CreatedInvite, downloads: ClientDownload[], version?: string) {
   const origin = window.location.origin
   const name = invite.note.trim()
   const file = `memspace-${p.os}-${p.arch}${p.os === 'windows' ? '.exe' : ''}`
-  const hasBinary = downloads.some((d) => d.name === file)
+  // Served by this server (a mirror for networks without GitHub access).
+  const mirrored = downloads.some((d) => d.name === file)
+  const pin = isRelease(version) ? version : ''
   if (p.os === 'windows') {
-    const install = `New-Item -ItemType Directory -Force "$HOME\\bin" | Out-Null\nInvoke-WebRequest ${origin}/downloads/${file} -OutFile "$HOME\\bin\\memspace.exe"`
+    const install = `${pin ? `$env:MEMSPACE_VERSION = "${pin}"; ` : ''}irm ${installScripts}/install.ps1 | iex`
+    const mirror = `New-Item -ItemType Directory -Force "$HOME\\bin" | Out-Null\nInvoke-WebRequest ${origin}/downloads/${file} -OutFile "$HOME\\bin\\memspace.exe"`
     const onboard = `& "$HOME\\bin\\memspace.exe" onboard ${origin} --invite ${invite.code}${name ? ` --name "${name.replace(/"/g, '')}"` : ''}`
-    return { install: hasBinary ? install : '', onboard }
+    return { install, mirror: mirrored ? mirror : '', onboard }
   }
-  const install = `mkdir -p ~/.local/bin\ncurl -fsSL --noproxy '*' ${origin}/downloads/${file} -o ~/.local/bin/memspace\nchmod +x ~/.local/bin/memspace`
+  const install = `curl -fsSL ${installScripts}/install.sh | sh${pin ? ` -s -- --version ${pin}` : ''}`
+  const mirror = `mkdir -p ~/.local/bin\ncurl -fsSL --noproxy '*' ${origin}/downloads/${file} -o ~/.local/bin/memspace\nchmod +x ~/.local/bin/memspace`
   const onboard = `~/.local/bin/memspace onboard ${origin} --invite ${invite.code}${name ? ' --name ' + shellQuote(name) : ''}`
-  return { install: hasBinary ? install : '', onboard }
+  return { install, mirror: mirrored ? mirror : '', onboard }
 }
 
-function AddDevice({ downloads, onCreated }: { downloads: ClientDownload[]; onCreated: () => void }) {
+function AddDevice({ downloads, version, onCreated }: { downloads: ClientDownload[]; version?: string; onCreated: () => void }) {
   const [note, setNote] = useState('')
   const [ttl, setTTL] = useState('24')
   const [busy, setBusy] = useState(false)
@@ -151,7 +160,7 @@ function AddDevice({ downloads, onCreated }: { downloads: ClientDownload[]; onCr
     }
   }
   const p = platforms.find((x) => x.key === platform)!
-  const cmds = invite ? setupCommands(p, invite, downloads) : undefined
+  const cmds = invite ? setupCommands(p, invite, downloads, version) : undefined
   return (
     <Card title="添加设备" actions={<span className="muted small">每台设备一个邀请码，只能使用一次</span>}>
       <form className="inline-form" onSubmit={submit}>
@@ -182,7 +191,7 @@ function AddDevice({ downloads, onCreated }: { downloads: ClientDownload[]; onCr
               <div className="muted small">只显示这一次 · {absTime(invite.expires_at)} 前有效</div>
             </div>
           </div>
-          <CopyBlock label="让 Agent 安装：复制给这台机器上的 Claude Code 或 Codex" text={agentPrompt(invite)} />
+          <CopyBlock label="让 Agent 安装：复制给这台机器上的 Claude Code、Codex 或 DSH" text={agentPrompt(invite)} />
           <p className="hint">Agent 会自己识别平台、下载 client、运行 onboard 并自检；修改它的配置前会征求你的同意。也可以按下面的命令手动安装。</p>
           <div className="tabs" role="tablist">
             {platforms.map((x) => (
@@ -191,12 +200,9 @@ function AddDevice({ downloads, onCreated }: { downloads: ClientDownload[]; onCr
               </button>
             ))}
           </div>
-          {cmds.install ? (
-            <CopyBlock label={'1. 安装 memspace' + (p.os === 'windows' ? '（PowerShell）' : '')} text={cmds.install} />
-          ) : (
-            <p className="hint">服务器上没有这个平台的 client 程序（配置 <code>server.downloads_dir</code> 后可直接下载）。请手动把 memspace 放到这台机器上。</p>
-          )}
-          <CopyBlock label={(cmds.install ? '2. ' : '') + '连接并安装 Claude Code / Codex 采集'} text={cmds.onboard} />
+          <CopyBlock label={'1. 安装 memspace（从 GitHub 下载并校验）' + (p.os === 'windows' ? '，PowerShell' : '')} text={cmds.install} />
+          {cmds.mirror && <CopyBlock label="或者，这台机器访问不了 GitHub 时：从本服务器下载" text={cmds.mirror} />}
+          <CopyBlock label="2. 连接并安装 Claude Code / Codex / DSH 采集" text={cmds.onboard} />
           <p className="hint">onboard 会注册设备、为本机找到的 agent 安装采集 hook 和 MCP，并运行自检。之后在那台机器上运行 <code>memspace ui</code> 即可打开已登录的界面。</p>
         </div>
       )}
@@ -271,7 +277,7 @@ function PendingDevices({ onChange }: { onChange: () => void }) {
         <>
           <Empty>没有等待批准的设备。</Empty>
           <div className="setup">
-            <CopyBlock label="添加设备：把这句话发给新设备上的 Claude Code 或 Codex" text={`帮我在这台机器上安装 MemSpace：按 ${agentSetupURL} 的步骤操作。服务器 ${window.location.origin}。`} />
+            <CopyBlock label="添加设备：把这句话发给新设备上的 Claude Code、Codex 或 DSH" text={`帮我在这台机器上安装 MemSpace：按 ${agentSetupURL} 的步骤操作。服务器 ${window.location.origin}。`} />
             <p className="hint">Agent 会安装 client 并显示一个核对码，它会出现在这里等你批准。也可以在新设备上自己运行 <code>memspace onboard {window.location.origin}</code>。</p>
           </div>
         </>
@@ -468,6 +474,7 @@ export function Admin() {
   const devices = useAsync(api.devices, [])
   const sessions = useAsync(api.admin.sessions, [])
   const downloads = useAsync(api.admin.downloads, [])
+  const health = useAsync(api.health, [])
   return (
     <div className="page">
       <header className="page-head">
@@ -477,7 +484,7 @@ export function Admin() {
         </div>
       </header>
       <PendingDevices onChange={devices.reload} />
-      <AddDevice downloads={downloads.data ?? []} onCreated={invites.reload} />
+      <AddDevice downloads={downloads.data ?? []} version={health.data?.version} onCreated={invites.reload} />
       <Section title="邀请码">
         <Async state={invites}>{(list) => <Invites invites={list} reload={invites.reload} />}</Async>
       </Section>

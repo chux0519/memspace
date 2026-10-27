@@ -22,6 +22,7 @@ import (
 	"github.com/chux0519/memspace/internal/db"
 	"github.com/chux0519/memspace/internal/embedding"
 	"github.com/chux0519/memspace/internal/jobs"
+	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/search"
 	"github.com/chux0519/memspace/internal/server"
 	"github.com/chux0519/memspace/internal/spool"
@@ -39,6 +40,7 @@ func main() {
 		Short:         "MemSpace — shared memory service for AI coding agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       model.BuildVersion(),
 	}
 
 	root.PersistentFlags().StringVar(&cfgPath, "config", "", "path to config file (TOML; default $MEMSPACE_CONFIG or <home>/config.toml)")

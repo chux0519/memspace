@@ -57,7 +57,7 @@ Check that it is reachable:
 curl -fsS --noproxy '*' "$SERVER/api/v1/health"
 ```
 
-Expect JSON with `"status":"ok"`. Use `--noproxy '*'` when `SERVER` is on a
+Expect JSON with `"status":"ok"` and the server's `version` (used in step 4). Use `--noproxy '*'` when `SERVER` is on a
 private network (192.168.x, 10.x, 172.16–31.x, 100.64–127.x / Tailscale,
 `*.local`, `*.ts.net`): desktop HTTP proxies usually cannot reach those. For
 a public hostname, drop `--noproxy` if a proxy is required. If it is
@@ -87,25 +87,37 @@ command -v memspace && memspace client status
 
 ## 4. Install the client
 
-Download it from the server (the usual case):
+Use the server's version: read `version` from the health check in step 1.
+If it looks like `v0.1.0` (a release), pass it as below; otherwise (a
+development build) install the latest release.
+
+The install script downloads the client from the GitHub release and
+verifies its checksum:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chux0519/memspace/main/install.sh | sh -s -- --version v0.1.0
+~/.local/bin/memspace --version
+```
+
+Windows (PowerShell; installs `$HOME\bin\memspace.exe`):
+
+```powershell
+$env:MEMSPACE_VERSION = "v0.1.0"
+irm https://raw.githubusercontent.com/chux0519/memspace/main/install.ps1 | iex
+```
+
+If this machine cannot reach GitHub, download it from the server instead.
+The server serves its own copy if it has one, otherwise it redirects to
+GitHub:
 
 ```bash
 mkdir -p ~/.local/bin
 curl -fsSL --noproxy '*' "$SERVER/downloads/memspace-<os>-<arch>" -o ~/.local/bin/memspace
 chmod +x ~/.local/bin/memspace
-~/.local/bin/memspace --help | head -1
 ```
 
-Windows (PowerShell):
-
-```powershell
-New-Item -ItemType Directory -Force "$HOME\bin" | Out-Null
-Invoke-WebRequest "$SERVER/downloads/memspace-windows-amd64.exe" -OutFile "$HOME\bin\memspace.exe"
-```
-
-If the download returns 404, the server does not publish client builds.
-Build the client from source instead (needs Go ≥ 1.26, pure Go, no C
-toolchain):
+As a last resort, build the client from source (needs Go ≥ 1.26, pure Go,
+no C toolchain):
 
 ```bash
 CGO_ENABLED=0 go install github.com/chux0519/memspace/cmd/memspace@latest

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/chux0519/memspace/internal/auth"
+	"github.com/chux0519/memspace/internal/model"
 )
 
 // Administration from the web UI (admin sessions only, see
@@ -305,18 +306,28 @@ func DownloadsHandler(dir string) http.HandlerFunc {
 }
 
 // ServeDownload handles GET /downloads/{name}: client binaries, without
-// authentication (they are the open-source client; a device still needs an
-// invite to register). Only names matching memspace-<os>-<arch> are served.
+// authentication (they are the open-source client; a device still needs
+// approval to register). Only names matching memspace-<os>-<arch> are
+// served. A binary not in dir (or with no dir) redirects to the GitHub
+// release of this server's version, so clients match the server; dir is a
+// mirror for networks without access to GitHub.
 func ServeDownload(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := chi.URLParam(r, "name")
-		if _, _, ok := clientName(name); !ok || dir == "" {
+		if _, _, ok := clientName(name); !ok {
 			http.NotFound(w, r)
+			return
+		}
+		release := func() {
+			http.Redirect(w, r, model.ReleaseDownloadURL(model.BuildVersion(), name), http.StatusFound)
+		}
+		if dir == "" {
+			release()
 			return
 		}
 		f, err := os.Open(filepath.Join(dir, name))
 		if errors.Is(err, os.ErrNotExist) {
-			http.NotFound(w, r)
+			release()
 			return
 		}
 		if err != nil {

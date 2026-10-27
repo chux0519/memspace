@@ -264,6 +264,7 @@ const q = (params: Record<string, string | number | undefined>) => {
 
 export const api = {
   session: () => request<{ role: 'admin' | 'viewer' }>('GET', '/api/v1/ui/session'),
+  health: () => request<{ status: string; version: string }>('GET', '/api/v1/health'),
   login: (code: string) => request<void>('POST', '/api/v1/ui/login', { code }),
   logout: () => request<void>('POST', '/api/v1/ui/logout'),
   overview: () => request<Overview>('GET', '/api/v1/overview'),

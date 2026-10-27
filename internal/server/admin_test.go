@@ -186,4 +186,34 @@ func TestAdmin(t *testing.T) {
 			t.Errorf("GET %s: %d", p, r.StatusCode)
 		}
 	}
+	// A client that is not mirrored here comes from the GitHub release.
+	noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	r, _ = noRedirect.Get(srv.URL + "/downloads/memspace-linux-amd64")
+	r.Body.Close()
+	if loc := r.Header.Get("Location"); r.StatusCode != http.StatusFound ||
+		loc != model.ReleaseDownloadURL(model.BuildVersion(), "memspace-linux-amd64") ||
+		!strings.HasPrefix(loc, "https://github.com/chux0519/memspace/releases/") {
+		t.Errorf("unmirrored client: %d %q", r.StatusCode, loc)
+	}
+}
+
+func TestReleaseVersions(t *testing.T) {
+	for v, want := range map[string]bool{
+		"v0.1.0": true, "v1.2.3-rc.1": true,
+		"v0.0.0-20261027152831-d0a1f459ca81":   false,
+		"v0.1.1-0.20261027152831-d0a1f459ca81": false,
+		"v0.1.0+dirty":                         false,
+		"devel-d0a1f459ca81":                   false,
+		"":                                     false,
+	} {
+		if got := model.IsRelease(v); got != want {
+			t.Errorf("IsRelease(%q) = %v", v, got)
+		}
+	}
+	if got := model.ReleaseDownloadURL("v0.1.0", "memspace-linux-amd64"); got != "https://github.com/chux0519/memspace/releases/download/v0.1.0/memspace-linux-amd64" {
+		t.Errorf("release URL %s", got)
+	}
+	if got := model.ReleaseDownloadURL("devel-abc", "memspace-linux-amd64"); got != "https://github.com/chux0519/memspace/releases/latest/download/memspace-linux-amd64" {
+		t.Errorf("devel URL %s", got)
+	}
 }

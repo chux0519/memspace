@@ -10,6 +10,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/mod v0.29.0
 )
 
 require (

@@ -30,13 +30,20 @@ agent hook ──► memspace hook <agent> ──► normalize ─► redact ─
 
 ### 1. Run the server
 
-The server is a single binary with SQLite. Building it needs Go and a C/C++
-toolchain (cgo: the full-text tokenizer and sqlite-vec are compiled in).
+The server is a single binary with SQLite. Install a release build (Linux
+amd64/arm64, macOS arm64), verified against the release's checksums:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chux0519/memspace/main/install.sh | sh -s -- --server
+memspace server start            # reads ~/.memspace/config.toml
+```
+
+Or build it: needs Go and a C/C++ toolchain (cgo: the full-text tokenizer
+and sqlite-vec are compiled in).
 
 ```bash
 make build                       # → bin/memspace
 install -m 755 bin/memspace ~/.local/bin/memspace
-memspace server start            # reads ~/.memspace/config.toml
 ```
 
 Minimal server config (`~/.memspace/config.toml`):
@@ -45,7 +52,7 @@ Minimal server config (`~/.memspace/config.toml`):
 [server]
 address = "0.0.0.0:8765"              # default 127.0.0.1:8765
 public_url = "http://192.0.2.10:8765" # how devices and browsers reach it
-downloads_dir = "/srv/memspace/clients"   # optional, see "Client binaries"
+# downloads_dir = "/srv/memspace/clients"  # optional mirror, see "Client binaries"
 
 [database]
 path = "/srv/memspace/memspace.db"
@@ -73,7 +80,14 @@ loginctl enable-linger "$USER"   # keep user services running after logout
 
 ### 2. Connect devices
 
-On each device, one command connects it, installs hooks and MCP for the
+Install the client on each device (pure Go, from the GitHub release):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chux0519/memspace/main/install.sh | sh    # Linux, macOS
+irm https://raw.githubusercontent.com/chux0519/memspace/main/install.ps1 | iex           # Windows (PowerShell)
+```
+
+Then one command connects it, installs hooks and MCP for the
 detected agents (Claude Code, Codex, DSH) and runs the checks:
 
 ```bash
@@ -270,9 +284,13 @@ memspace server device revoke <device-id>
 memspace server login-link [--viewer] [--url URL]
 ```
 
-**Client binaries:** set `server.downloads_dir` to a directory of client
-builds named `memspace-<os>-<arch>[.exe]`; they are served at `/downloads/`
-and used by the setup commands in the UI. The client is pure Go:
+**Client binaries** are published with each GitHub release and installed
+by `install.sh` / `install.ps1`; the web UI's setup commands pin the
+server's version. `/downloads/memspace-<os>-<arch>[.exe]` on the server
+redirects to the release of the server's version. For devices that cannot
+reach GitHub, set `server.downloads_dir` to a directory of client builds
+with those names: the server then serves them itself, and the UI offers
+them too. The client is pure Go:
 
 ```bash
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o memspace-darwin-arm64 ./cmd/memspace
@@ -373,7 +391,7 @@ also accept a web UI session. Writes need a device token.
 | `GET /api/v1/sync/status`, `POST /api/v1/sync/report` | the server's view of a device; the client's spool report |
 | `POST /api/v1/ui/login-links`, `/ui/login`, `/ui/logout`, `GET /ui/session` | browser sign-in |
 | `/api/v1/admin/…` | device requests (approve / deny), invites, device revocation, login links, browser sessions, downloads (admin sessions only) |
-| `GET /downloads/{name}` | client binaries from `server.downloads_dir` (no auth) |
+| `GET /downloads/{name}` | client binaries from `server.downloads_dir`, else a redirect to the GitHub release of the server's version (no auth) |
 | `/mcp` | MCP, streamable HTTP, read-only tools (agents use it through `memspace mcp stdio`) |
 
 ## Development
@@ -386,6 +404,10 @@ make build-client   # pure-Go client only (hooks, sync, setup); cannot run the s
 make ui             # rebuild the web UI (npm ci && npm run build → web/dist)
 cd web && MEMSPACE_DEV_SERVER=http://127.0.0.1:8765 npm run dev   # live reload, API proxied
 ```
+
+Releases: pushing a tag `v*` runs `.github/workflows/release.yml`, which
+builds the clients and the server binaries, tests on each server platform,
+and publishes them with `SHA256SUMS`, `LICENSE` and `NOTICE`.
 
 The web UI (React, TypeScript, Vite) lives in `web/`; its build output
 `web/dist` is committed and embedded, so `go build` needs no Node.
