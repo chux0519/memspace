@@ -16,6 +16,9 @@ Local changes:
 - `include/cmrc/cmrc.hpp` replaces CMakeRC; `memspace_glue.cc` supplies the
   embedded pinyin bytes and the jieba dictionary directory from Go.
 - `data/user.dict.utf8` is MemSpace's technical-term dictionary (not upstream).
+- `include/limonp/StringUtil.hpp`: the trim helpers use lambdas instead of
+  `std::ptr_fun` / `std::bind2nd`, which C++17 removed (libc++ on macOS
+  rejects them).
 
 Upstream source files are otherwise unmodified. When updating, keep the
 SQLite headers in sync with the mattn/go-sqlite3 version in go.mod.
