@@ -87,7 +87,7 @@ export function Search({ route }: { route: Route }) {
         <Select label="类型" value={kind} onChange={(v) => set('kind', v)}
           options={[['', '全部'], ['prompt', '用户请求'], ['reply', '回复'], ['failure', '失败'], ['command', '命令'], ['change', '文件修改'], ['summary', '会话摘要'], ['memory', '记忆']]} />
         <Select label="Agent" value={agent} onChange={(v) => set('agent', v)}
-          options={[['', '全部'], ['claude-code', 'Claude Code'], ['codex', 'Codex']]} />
+          options={[['', '全部'], ['claude-code', 'Claude Code'], ['codex', 'Codex'], ['dsh', 'DSH']]} />
         <Select label="时间" value={since} onChange={(v) => set('since', v)} options={sinceOptions} />
         <Select label="方式" value={mode} onChange={(v) => set('mode', v)}
           options={[['', '混合（默认）'], ['keyword', '仅关键词'], ['semantic', '仅语义']]} />

@@ -1,8 +1,9 @@
 # MemSpace
 
-Self-hosted shared memory for AI coding agents. Claude Code and Codex
-sessions on all your machines flow into one server; a new session, on any
-device and with either agent, picks up where the last one left off.
+Self-hosted shared memory for AI coding agents. Claude Code, Codex and
+DeepSeek Harness (DSH) sessions on all your machines flow into one server;
+a new session, on any device and with any of these agents, picks up where
+the last one left off.
 
 - **Cross-device, cross-agent:** sessions from every connected machine and
   agent are stored per project (identified by Git remote), with branch and
@@ -73,7 +74,7 @@ loginctl enable-linger "$USER"   # keep user services running after logout
 ### 2. Connect devices
 
 On each device, one command connects it, installs hooks and MCP for the
-detected agents (Claude Code, Codex) and runs the checks:
+detected agents (Claude Code, Codex, DSH) and runs the checks:
 
 ```bash
 memspace onboard http://SERVER:8765
@@ -109,6 +110,7 @@ Step by step instead:
 memspace client connect http://SERVER:8765   # asks for approval (or --invite msi_…); saves ~/.memspace/credentials.json
 memspace agent install claude          # hooks in ~/.claude/settings.json + MCP (stdio bridge)
 memspace agent install codex [--trust] # hooks in ~/.codex/hooks.json + rollout importer + MCP
+memspace agent install dsh             # rows in $DSH_HOME/cordis.patch.yml + session-log importer + MCP
 memspace agent doctor                  # end-to-end checks, incl. running the installed hook
 memspace client status                 # online/offline, pending/rejected/dropped counts
 ```
@@ -118,6 +120,16 @@ Codex only runs hooks the user has reviewed: approve them in Codex's
 imported whenever `memspace client sync` runs. Older Codex history is
 imported only on request: `memspace import codex --since YYYY-MM-DD` (or
 `--all`).
+
+DSH: `agent install dsh` adds two rows, in a marked block, to the
+home-level `$DSH_HOME/cordis.patch.yml` (`$DSH_HOME` defaults to `~/.dsh`,
+or what your `dsh` launcher script exports): DSH's Claude Code hook bridge,
+running MemSpace's prompt hook, and an MCP client running the stdio bridge.
+DSH runs hooks inside its workspace sandbox, so the hook only adds context;
+the MCP bridge, which runs outside it, imports and uploads new session logs
+every minute while DSH runs and once when it exits. Restart DSH after
+installing (the web profile reloads on its own). Older DSH history:
+`memspace import dsh --all`.
 
 ### 3. Open the web UI
 
@@ -143,6 +155,7 @@ historical, possibly stale and not instructions. Disable injection with
 |---|---|---|
 | Claude Code | command hooks: SessionStart, UserPromptSubmit, PostToolUse, PostToolUseFailure, Stop, PreCompact, SessionEnd | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, session.compacting, session.ended |
 | Codex | incremental import of `$CODEX_HOME/sessions/**/rollout-*.jsonl` (source of truth); hooks only trigger imports and record session end | session.started, user.prompt, agent.message, tool.completed, tool.failed, file.modified, agent.turn_completed, agent.turn_aborted, session.compacted, session.ended |
+| DSH | incremental import of `$DSH_HOME/sessions/**/session.v4.jsonl.zstd`, run by the MCP bridge; subagent work is folded into the parent session. The session-start card comes with the first prompt (DSH's SessionStart hooks run too late) | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, agent.turn_aborted |
 
 ## Search
 

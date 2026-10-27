@@ -47,6 +47,13 @@ type Config struct {
 	Agent     string // agent_type, e.g. claude-code
 	Offline   bool   // the client is backing off after failed syncs
 	MCP       bool   // the MCP server is registered (the hint names its tools)
+	// StartWithFirstPrompt adds the session-start context to the first
+	// prompt of a session, for agents whose SessionStart hook cannot.
+	StartWithFirstPrompt bool
+	// MarkerDir holds per-session markers (context already delivered);
+	// default StateDir. DSH runs hooks in a sandbox that can write only to
+	// the workspace and temporary directories.
+	MarkerDir string
 	HTTP      *http.Client
 }
 
@@ -75,6 +82,11 @@ func Run(ctx context.Context, cfg Config, raw []byte) []byte {
 		text = sessionStart(ctx, cfg, in)
 	case "UserPromptSubmit":
 		text = promptRecall(ctx, cfg, in)
+		if cfg.StartWithFirstPrompt && firstPrompt(cfg, in) {
+			if start := sessionStart(ctx, cfg, in); start != "" {
+				text = strings.TrimSpace(start + "\n\n" + text)
+			}
+		}
 	}
 	if text == "" {
 		return nil
@@ -127,7 +139,7 @@ func promptRecall(ctx context.Context, cfg Config, in Input) string {
 		return "" // skip the network call for "ok", "继续" and the like
 	}
 	pref, _ := ref(in.Cwd)
-	deliveredPath := filepath.Join(cfg.StateDir, "delivered", hash(cfg.Agent+"|"+in.SessionID)+".json")
+	deliveredPath := filepath.Join(cfg.markerDir(), "delivered", hash(cfg.Agent+"|"+in.SessionID)+".json")
 	delivered := readDelivered(deliveredPath)
 	pack, err := fetch(ctx, cfg, PromptTimeout, contextpack.Request{
 		Mode: contextpack.ModePrompt, Project: pref, AgentType: cfg.Agent, NativeSessionID: in.SessionID,
@@ -141,6 +153,27 @@ func promptRecall(ctx context.Context, cfg Config, in Input) string {
 	}
 	writeJSON(deliveredPath, delivered)
 	return pack.Text
+}
+
+func (cfg Config) markerDir() string {
+	if cfg.MarkerDir != "" {
+		return cfg.MarkerDir
+	}
+	return cfg.StateDir
+}
+
+// firstPrompt reports whether this is the session's first prompt by
+// creating a marker. If the marker cannot be written it reports false, so
+// that an unwritable directory never repeats the start context.
+func firstPrompt(cfg Config, in Input) bool {
+	path := filepath.Join(cfg.markerDir(), "delivered", hash(cfg.Agent+"|"+in.SessionID)+".started")
+	os.MkdirAll(filepath.Dir(path), 0o700)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
 }
 
 func substantive(q string) bool {

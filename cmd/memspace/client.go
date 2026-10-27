@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chux0519/memspace/internal/adapter/codex"
+	"github.com/chux0519/memspace/internal/adapter/dsh"
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/syncer"
@@ -86,6 +87,9 @@ func newSyncer(cfg *config.Config) (*syncer.Syncer, error) {
 	if cx := (&codex.Adapter{StateDir: cfg.Client.StateDir()}); cx.Enabled() {
 		importers = append(importers, cx.NewImporter())
 	}
+	if d := (&dsh.Adapter{StateDir: cfg.Client.StateDir()}); d.Enabled() {
+		importers = append(importers, d.NewImporter())
+	}
 	return syncer.New(cfg.Client, sp, creds, importers...), nil
 }
 
@@ -108,9 +112,9 @@ replay loop (e.g. under systemd/launchd) for devices that are often offline.`,
 			if err != nil {
 				return err
 			}
-			if !quiet {
-				s.Log = os.Stderr
-			}
+			// Problems (failed imports, recovered uploads) are reported even
+			// with --quiet: hook-started syncs log to sync.log.
+			s.Log = os.Stderr
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 

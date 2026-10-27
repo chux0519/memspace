@@ -157,6 +157,7 @@ a.row:hover { background: var(--surface-2); color: inherit; }
 .badge-live { background: rgba(8, 47, 73, 0.7); border-color: rgba(14, 165, 233, 0.7); color: var(--live); }
 .badge-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
 .badge-agent, .badge-codex { background: rgba(59, 7, 100, 0.45); border-color: rgba(139, 92, 246, 0.6); color: var(--agent); }
+.badge-dsh { background: rgba(23, 37, 84, 0.7); border-color: rgba(59, 130, 246, 0.7); color: #93c5fd; }
 .badge-claude, .badge-file { background: rgba(67, 20, 7, 0.55); border-color: rgba(234, 88, 12, 0.6); color: var(--file); }
 
 /* Stats */

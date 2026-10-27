@@ -59,7 +59,7 @@ export function oneLine(s: string, max = 160): string {
   return t.length > max ? t.slice(0, max) + '…' : t
 }
 
-export const agentLabel: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex' }
+export const agentLabel: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', dsh: 'DSH' }
 
 export const eventLabel: Record<string, string> = {
   'session.started': '会话开始',

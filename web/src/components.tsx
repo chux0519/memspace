@@ -55,7 +55,8 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export function AgentBadge({ agent }: { agent: string }) {
-  return <Badge tone={agent === 'codex' ? 'codex' : 'claude'}>{agentLabel[agent] ?? agent}</Badge>
+  const tone = agent === 'codex' ? 'codex' : agent === 'dsh' ? 'dsh' : 'claude'
+  return <Badge tone={tone}>{agentLabel[agent] ?? agent}</Badge>
 }
 
 export function Time({ iso, abs }: { iso?: string; abs?: boolean }) {

@@ -52,7 +52,7 @@ export function Sessions({ route }: { route: Route }) {
         <Select label="项目" value={project} onChange={(v) => set('project', v)}
           options={[['', '全部项目'], ...(projects.data ?? []).map((p): [string, string] => [p.project_id, p.name])]} />
         <Select label="Agent" value={agent} onChange={(v) => set('agent', v)}
-          options={[['', '全部'], ['claude-code', 'Claude Code'], ['codex', 'Codex']]} />
+          options={[['', '全部'], ['claude-code', 'Claude Code'], ['codex', 'Codex'], ['dsh', 'DSH']]} />
         <Select label="设备" value={device} onChange={(v) => set('device_id', v)}
           options={[['', '全部设备'], ...(devices.data ?? []).map((d): [string, string] => [d.device_id, d.name])]} />
         <Select label="状态" value={status} onChange={(v) => set('status', v)}

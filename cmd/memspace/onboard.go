@@ -71,7 +71,7 @@ running setup should do this, so they can relay the code).`,
 				}
 			}
 			if len(agents) == 0 {
-				fmt.Println("No supported agents found (claude, codex); install one and run 'memspace agent install <agent>'.")
+				fmt.Println("No supported agents found (claude, codex, dsh); install one and run 'memspace agent install <agent>'.")
 			}
 			for _, n := range agents {
 				a, err := lookupAdapter(cfg, n)

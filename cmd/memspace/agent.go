@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/chux0519/memspace/internal/adapter"
 	"github.com/chux0519/memspace/internal/adapter/claudecode"
 	"github.com/chux0519/memspace/internal/adapter/codex"
+	"github.com/chux0519/memspace/internal/adapter/dsh"
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/inject"
@@ -25,7 +27,7 @@ import (
 func agentCmd(use string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
-		Short: "Install, remove and check coding-agent integrations (claude, codex)",
+		Short: "Install, remove and check coding-agent integrations (claude, codex, dsh)",
 	}
 	if use != "agent" {
 		cmd.Hidden = true
@@ -120,7 +122,7 @@ func agentInstallCmd() *cobra.Command {
 	var bin string
 	var trust, noMCP bool
 	cmd := &cobra.Command{
-		Use:   "install <claude|codex>",
+		Use:   "install <claude|codex|dsh>",
 		Short: "Register MemSpace hooks with an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -165,7 +167,7 @@ func agentInstallCmd() *cobra.Command {
 
 func agentUninstallCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "uninstall <claude|codex>",
+		Use:   "uninstall <claude|codex|dsh>",
 		Short: "Remove MemSpace hooks from an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -187,7 +189,7 @@ func agentUninstallCmd() *cobra.Command {
 
 func agentDoctorCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "doctor [claude|codex]...",
+		Use:   "doctor [claude|codex|dsh]...",
 		Short: "Check that capture and upload work end to end",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
@@ -368,7 +370,10 @@ func runHook(agent string) {
 		return // not connected yet: keep buffering
 	}
 	// Codex hooks exist to trigger imports even when they record nothing.
+	// DSH hooks run sandboxed, where a sync cannot write its state; DSH's
+	// MCP bridge syncs instead (see mcpSyncLoop).
 	_, codexHook := a.(*codex.Adapter)
+	_, dshHook := a.(*dsh.Adapter)
 	if len(recs) > 0 || codexHook {
 		triggerSync(cfg, logf)
 	}
@@ -383,6 +388,10 @@ func runHook(agent string) {
 			Agent:     agentType(a),
 			Offline:   state.Offline() && time.Now().Before(state.NextAttemptAt),
 			MCP:       creds.MCPToken != "",
+			// DSH runs SessionStart hooks detached, so their context can
+			// miss the first request; it comes with the first prompt.
+			StartWithFirstPrompt: dshHook,
+			MarkerDir:            markerDir(cfg, dshHook),
 		}, raw)
 		if len(out) > 0 {
 			os.Stdout.Write(out)
@@ -390,9 +399,22 @@ func runHook(agent string) {
 	}
 }
 
+// markerDir is where sandboxed hooks keep per-session markers: a private
+// directory under the system temp dir, one per client home.
+func markerDir(cfg *config.Config, sandboxed bool) string {
+	if !sandboxed {
+		return ""
+	}
+	h := sha256.Sum256([]byte(cfg.Client.Home))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("memspace-%d-%x", os.Getuid(), h[:4]))
+}
+
 func agentType(a adapter.Adapter) string {
-	if _, ok := a.(*codex.Adapter); ok {
+	switch a.(type) {
+	case *codex.Adapter:
 		return codex.AgentType
+	case *dsh.Adapter:
+		return dsh.AgentType
 	}
 	return claudecode.AgentType
 }
@@ -489,7 +511,44 @@ func importCmd() *cobra.Command {
 	}
 	codexCmd.Flags().StringVar(&since, "since", "", "import sessions active since this date (YYYY-MM-DD)")
 	codexCmd.Flags().BoolVar(&all, "all", false, "import all history")
-	cmd.AddCommand(codexCmd)
+
+	var dshSince string
+	var dshAll bool
+	dshCmd := &cobra.Command{
+		Use:   "dsh",
+		Short: "Import DeepSeek Harness session logs (default: since install)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			im := (&dsh.Adapter{StateDir: cfg.Client.StateDir()}).NewImporter()
+			switch {
+			case dshAll:
+				im.Since, im.Reset = time.Time{}, true
+			case dshSince != "":
+				t, err := time.ParseInLocation("2006-01-02", dshSince, time.Local)
+				if err != nil {
+					return fmt.Errorf("--since: want YYYY-MM-DD: %w", err)
+				}
+				im.Since, im.Reset = t, true
+			}
+			sp, err := openSpool(cfg)
+			if err != nil {
+				return err
+			}
+			n, err := im.Import(cmd.Context(), sp, nil)
+			fmt.Printf("Spooled %d events from %s\n", n, filepath.Join(im.DSHHome, "sessions"))
+			if err != nil {
+				return err
+			}
+			fmt.Println("Upload with: memspace client sync")
+			return nil
+		},
+	}
+	dshCmd.Flags().StringVar(&dshSince, "since", "", "import sessions active since this date (YYYY-MM-DD)")
+	dshCmd.Flags().BoolVar(&dshAll, "all", false, "import all history")
+	cmd.AddCommand(codexCmd, dshCmd)
 	return cmd
 }
 

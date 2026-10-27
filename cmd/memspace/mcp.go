@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 
 	"github.com/chux0519/memspace/internal/adapter"
+	"github.com/chux0519/memspace/internal/adapter/dsh"
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/mcpbridge"
@@ -19,7 +22,48 @@ import (
 	"github.com/chux0519/memspace/internal/syncer"
 )
 
+// mcpSyncLoop starts a sync every interval while DSH's session logs keep
+// changing, and once more when stopped. DSH runs hooks in its workspace
+// sandbox, where a sync cannot write its state; the MCP bridge runs outside
+// it for as long as DSH does.
+func mcpSyncLoop(cfg *config.Config, interval time.Duration) (stop func()) {
+	logf := func(format string, a ...any) { hookLog(cfg, format, a...) }
+	d := &dsh.Adapter{StateDir: cfg.Client.StateDir()}
+	if !d.Enabled() {
+		return func() {}
+	}
+	im := d.NewImporter()
+	var synced time.Time
+	sync := func() {
+		if latest := im.LatestChange(); latest.After(synced) {
+			synced = latest
+			triggerSync(cfg, logf)
+		}
+	}
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				sync()
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		<-finished
+		sync()
+	}
+}
+
 func mcpCmd() *cobra.Command {
+	var syncInterval time.Duration
 	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "MemSpace's MCP server for agents (stdio bridge, credentials)",
@@ -45,7 +89,17 @@ MCP server, so their configuration holds a command, not a secret:
 			if err != nil {
 				return err
 			}
-			return mcpbridge.Run(cmd.Context(), mcpbridge.Options{
+			ctx := cmd.Context()
+			if syncInterval > 0 {
+				// The agent may stop the bridge with a signal rather than by
+				// closing stdin; either way the final sync runs.
+				var cancel context.CancelFunc
+				ctx, cancel = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+				defer cancel()
+				stop := mcpSyncLoop(cfg, syncInterval)
+				defer stop()
+			}
+			return mcpbridge.Run(ctx, mcpbridge.Options{
 				URL:       strings.TrimRight(serverURL(cfg, creds), "/") + "/mcp",
 				Token:     tok,
 				Transport: client.New("", "").HTTPClient.Transport,
@@ -53,6 +107,8 @@ MCP server, so their configuration holds a command, not a secret:
 			}, &mcp.StdioTransport{})
 		},
 	}
+	stdio.Flags().DurationVar(&syncInterval, "sync-interval", 0,
+		"while running, sync this often when DSH session logs changed, and once on exit (DSH, whose hooks cannot sync)")
 	var rotate bool
 	token := &cobra.Command{
 		Use:   "token",
@@ -139,6 +195,9 @@ func registerMCP(ctx context.Context, cfg *config.Config, bin string, a adapter.
 	argv, err := selfArgv(cfg, bin, "mcp", "stdio")
 	if err != nil {
 		return err
+	}
+	if _, ok := a.(*dsh.Adapter); ok {
+		argv = append(argv, dsh.MCPArgs...)
 	}
 	return r.RegisterMCP(ctx, adapter.MCPOptions{
 		URL:     strings.TrimRight(serverURL(cfg, creds), "/") + "/mcp",

@@ -99,7 +99,7 @@ func searchCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&allProjects, "all", false, "search every project")
 	cmd.Flags().StringSliceVar(&projectIDs, "project", nil, "search these project IDs")
 	cmd.Flags().StringSliceVar(&kinds, "kind", nil, "prompt, reply, failure, command, change, summary")
-	cmd.Flags().StringSliceVar(&agents, "agent", nil, "claude-code, codex")
+	cmd.Flags().StringSliceVar(&agents, "agent", nil, "claude-code, codex, dsh")
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum results")
 	cmd.Flags().DurationVar(&since, "since", 0, "only results newer than this (e.g. 72h)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print the raw response")

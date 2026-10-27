@@ -174,3 +174,29 @@ func TestIgnoresOtherEventsAndGarbage(t *testing.T) {
 		t.Errorf("server error injected %q", got)
 	}
 }
+
+// DSH's SessionStart context can miss the first request, so it comes with
+// the first prompt, once. An unwritable marker directory never repeats it.
+func TestStartWithFirstPrompt(t *testing.T) {
+	f := newFake(t)
+	c := cfg(t, f)
+	c.Agent, c.StartWithFirstPrompt, c.MarkerDir = "dsh", true, t.TempDir()
+	f.reply = contextpack.Pack{Text: "<memspace_context>notes</memspace_context>"}
+	prompt := input("UserPromptSubmit", map[string]any{"prompt": "fix the deploy script"})
+
+	got := context_(t, Run(context.Background(), c, prompt))
+	if f.calls.Load() != 2 || !strings.Contains(got, "notes") {
+		t.Fatalf("first prompt: %d calls, %q", f.calls.Load(), got)
+	}
+	Run(context.Background(), c, prompt)
+	if f.last.Mode != contextpack.ModePrompt || f.calls.Load() != 3 {
+		t.Errorf("second prompt fetched start context again: %d calls, mode %s", f.calls.Load(), f.last.Mode)
+	}
+
+	c.MarkerDir = "/proc/memspace-unwritable"
+	f.calls.Store(0)
+	Run(context.Background(), c, input("UserPromptSubmit", map[string]any{"prompt": "fix the deploy script", "session_id": "s2"}))
+	if f.calls.Load() != 1 || f.last.Mode != contextpack.ModePrompt {
+		t.Errorf("unwritable markers: %d calls, mode %s", f.calls.Load(), f.last.Mode)
+	}
+}
