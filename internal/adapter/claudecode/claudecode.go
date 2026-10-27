@@ -200,6 +200,20 @@ type input struct {
 	CustomInstructions   string         `json:"custom_instructions"`
 }
 
+// ProjectDirEnv is set by Claude Code for hook commands: the directory the
+// session was started in. DSH's hook bridge sets it too.
+const ProjectDirEnv = "CLAUDE_PROJECT_DIR"
+
+// ProjectDir is the directory that identifies the session's project: the
+// one the session was started in, not the hook's cwd, which follows the
+// agent's cd and can be a subagent's temporary directory.
+func ProjectDir(cwd string) string {
+	if d := os.Getenv(ProjectDirEnv); d != "" {
+		return d
+	}
+	return cwd
+}
+
 // fileTools modify the file named in tool_input.file_path / notebook_path.
 var fileTools = map[string]bool{"Write": true, "Edit": true, "MultiEdit": true, "NotebookEdit": true}
 
@@ -213,7 +227,7 @@ func (a *Adapter) Normalize(raw []byte, now time.Time) ([]spool.Record, error) {
 	if in.SessionID == "" || in.HookEventName == "" {
 		return nil, fmt.Errorf("claude hook: session_id and hook_event_name are required")
 	}
-	hint := project.Detect(in.Cwd)
+	hint := project.Detect(ProjectDir(in.Cwd))
 	rec := func(id, typ string, payload map[string]any) spool.Record {
 		return spool.Record{
 			EventID:         id,

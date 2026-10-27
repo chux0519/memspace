@@ -104,3 +104,76 @@ func TestDetectHomeRepo(t *testing.T) {
 		t.Errorf("repo below home: %+v", h)
 	}
 }
+
+// A directory the enclosing repository ignores is its own project, even
+// when some files under it were force-added; directories the repository
+// does not ignore (including new, untracked ones) belong to it.
+func TestDetectIgnored(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root := t.TempDir()
+	write(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(root, ".git", "config"), "[remote \"origin\"]\n\turl = git@github.com:me/umbrella.git\n")
+	write(t, filepath.Join(root, ".git", "info", "exclude"), "scratch/\n")
+	write(t, filepath.Join(root, ".gitignore"), "/*\n!.gitignore\n!/tools\n!docs/\nbuild/\n")
+	write(t, filepath.Join(root, "tools", ".gitignore"), "vendor/**\n!vendor/keep\n")
+	for _, d := range []string{"coupon/deploy", "tools/new", "tools/build", "tools/vendor/x", "docs/api", "tools/scratch"} {
+		os.MkdirAll(filepath.Join(root, d), 0o755)
+	}
+	write(t, filepath.Join(root, "coupon", "deploy", "run.sh"), "force-added\n")
+
+	for dir, inRepo := range map[string]bool{
+		"":               true,
+		"coupon":         false, // ignored by /*
+		"coupon/deploy":  false, // below an ignored directory
+		"tools":          true,  // re-included
+		"tools/new":      true,  // untracked, not ignored
+		"tools/build":    false, // unanchored pattern at any depth
+		"tools/vendor/x": false,
+		"docs/api":       true,
+		"tools/scratch":  false, // .git/info/exclude
+	} {
+		h := Detect(filepath.Join(root, dir))
+		if got := h.GitIdentity == "github.com/me/umbrella"; got != inRepo {
+			t.Errorf("%q: in repo = %v, want %v (%+v)", dir, got, inRepo, h)
+		}
+		if !inRepo && h.Root != filepath.Join(root, dir) {
+			t.Errorf("%q: root %q, want the directory itself", dir, h.Root)
+		}
+	}
+}
+
+func TestIgnorePatterns(t *testing.T) {
+	cases := []struct {
+		pattern, base, path string
+		match               bool
+	}{
+		{"node_modules", "", "a/b/node_modules", true},
+		{"node_modules/", "", "node_modules", true},
+		{"/build", "", "build", true},
+		{"/build", "", "a/build", false},
+		{"a/*/c", "", "a/b/c", true},
+		{"a/*/c", "", "a/b/x/c", false},
+		{"a/**/c", "", "a/b/x/c", true},
+		{"a/**/c", "", "a/c", true},
+		{"**/logs", "", "x/logs", true},
+		{"logs/**", "", "logs/x", true},
+		{"tmp?", "", "tmp1", true},
+		{"[ab]x", "", "bx", true},
+		{"[!ab]x", "", "bx", false},
+		{"out", "pkg", "pkg/out", true},
+		{"out", "pkg", "out", false},
+		{"/out", "pkg", "pkg/x/out", false},
+		{`\#notes`, "", "#notes", true},
+	}
+	for _, c := range cases {
+		r, ok := parseIgnore(c.pattern, c.base)
+		if !ok || r.match(c.path) != c.match {
+			t.Errorf("%q in %q vs %q: ok=%v match=%v, want %v", c.pattern, c.base, c.path, ok, ok && r.match(c.path), c.match)
+		}
+	}
+	for _, line := range []string{"", "# comment", "   ", "!"} {
+		if _, ok := parseIgnore(line, ""); ok {
+			t.Errorf("%q parsed as a rule", line)
+		}
+	}
+}

@@ -162,3 +162,18 @@ func TestInstallUninstallRoundTrip(t *testing.T) {
 		t.Errorf("after uninstall: %s", b)
 	}
 }
+
+// The project comes from the directory the session started in
+// (CLAUDE_PROJECT_DIR), not from the hook's cwd, which follows cd.
+func TestProjectFromStartDir(t *testing.T) {
+	start := t.TempDir()
+	t.Setenv(ProjectDirEnv, start)
+	raw := []byte(`{"session_id":"s1","hook_event_name":"UserPromptSubmit","prompt":"hi","cwd":"` + t.TempDir() + `"}`)
+	recs, err := (&Adapter{}).Normalize(raw, time.Now())
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("%v %v", recs, err)
+	}
+	if recs[0].Project.Root != start {
+		t.Errorf("project root %q, want %q", recs[0].Project.Root, start)
+	}
+}

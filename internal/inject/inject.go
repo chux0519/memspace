@@ -54,7 +54,10 @@ type Config struct {
 	// default StateDir. DSH runs hooks in a sandbox that can write only to
 	// the workspace and temporary directories.
 	MarkerDir string
-	HTTP      *http.Client
+	// ProjectDir, when set, identifies the project instead of the hook's
+	// cwd: the directory the session was started in.
+	ProjectDir string
+	HTTP       *http.Client
 }
 
 // Input is the subset of hook stdin MemSpace reads (same field names in
@@ -72,6 +75,9 @@ func Run(ctx context.Context, cfg Config, raw []byte) []byte {
 	var in Input
 	if json.Unmarshal(raw, &in) != nil || in.SessionID == "" {
 		return nil
+	}
+	if cfg.ProjectDir != "" {
+		in.Cwd = cfg.ProjectDir
 	}
 	var text string
 	switch in.HookEventName {

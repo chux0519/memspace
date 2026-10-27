@@ -39,9 +39,24 @@ type Importer struct {
 	Since time.Time
 	// Reset ignores saved cursors (used by explicit backfills).
 	Reset bool
+
+	hints map[string]project.Hint
 }
 
 func (im *Importer) Name() string { return "dsh" }
+
+// hint detects the project of a session's start directory, once per import.
+func (im *Importer) hint(cwd string) project.Hint {
+	if h, ok := im.hints[cwd]; ok {
+		return h
+	}
+	if im.hints == nil {
+		im.hints = map[string]project.Hint{}
+	}
+	h := project.Detect(cwd)
+	im.hints[cwd] = h
+	return h
+}
 
 // LogName is the session log file name DSH 0.2 writes.
 const LogName = "session.v4.jsonl.zstd"
@@ -267,7 +282,7 @@ func (im *Importer) records(data []byte, c *cursor, sp *spool.Spool) (int, error
 				NativeSessionID: sid,
 				EventType:       ev.typ,
 				OccurredAt:      ev.at,
-				Project:         project.Detect(c.Cwd),
+				Project:         im.hint(c.Cwd),
 				Payload:         adapter.Payload(ev.payload),
 			}
 			if err := sp.Write(rec); err != nil {

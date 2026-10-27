@@ -1,6 +1,7 @@
 // Package project derives a path-independent project identity from a working
-// directory: the normalized Git remote when there is one, otherwise
-// the directory name. It reads .git directly instead of shelling out to git,
+// directory (the directory the agent was started in): the normalized Git
+// remote of the repository containing it, unless that repository ignores
+// it, otherwise the directory name. It reads .git directly instead of shelling out to git,
 // because it runs inside agent hooks where latency matters.
 package project
 
@@ -42,7 +43,10 @@ func Detect(cwd string) Hint {
 		cwd = abs
 	}
 	root, gitDir, commonDir := findGit(cwd)
-	if root == "" {
+	if root == "" || ignoredBelow(root, commonDir, cwd) {
+		// Outside a repository, or in a directory the repository ignores
+		// (an umbrella or dotfiles repository around unrelated work): the
+		// directory itself is the project.
 		return Hint{Root: cwd, Name: filepath.Base(cwd)}
 	}
 	h := Hint{Root: root, Name: filepath.Base(root)}

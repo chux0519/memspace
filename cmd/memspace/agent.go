@@ -392,6 +392,7 @@ func runHook(agent string) {
 			// miss the first request; it comes with the first prompt.
 			StartWithFirstPrompt: dshHook,
 			MarkerDir:            markerDir(cfg, dshHook),
+			ProjectDir:           projectDir(a),
 		}, raw)
 		if len(out) > 0 {
 			os.Stdout.Write(out)
@@ -407,6 +408,17 @@ func markerDir(cfg *config.Config, sandboxed bool) string {
 	}
 	h := sha256.Sum256([]byte(cfg.Client.Home))
 	return filepath.Join(os.TempDir(), fmt.Sprintf("memspace-%d-%x", os.Getuid(), h[:4]))
+}
+
+// projectDir is the session's start directory for agents that tell hooks
+// (Claude Code, and DSH through its Claude Code hook bridge). Codex hooks
+// get it from the inherited environment only, so it is not used for them.
+func projectDir(a adapter.Adapter) string {
+	switch a.(type) {
+	case *claudecode.Adapter, *dsh.Adapter:
+		return os.Getenv(claudecode.ProjectDirEnv)
+	}
+	return ""
 }
 
 func agentType(a adapter.Adapter) string {
