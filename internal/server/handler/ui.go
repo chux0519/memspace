@@ -104,7 +104,7 @@ func OverviewHandler(db *sql.DB, owner string, emb *embedding.Service) http.Hand
 			SELECT (SELECT COUNT(*) FROM projects WHERE user_id = ?),
 				(SELECT COUNT(*) FROM devices WHERE user_id = ? AND revoked_at IS NULL),
 				(SELECT COUNT(*) FROM sessions s JOIN projects p ON p.project_id = s.project_id
-					WHERE p.user_id = ? AND s.started_at >= ?),
+					WHERE p.user_id = ? AND s.started_at >= ? AND `+sessions.HasPrompt+`),
 				(SELECT COUNT(*) FROM events e JOIN projects p ON p.project_id = e.project_id
 					WHERE p.user_id = ? AND e.received_at >= ?),
 				(SELECT COUNT(*) FROM events e JOIN projects p ON p.project_id = e.project_id WHERE p.user_id = ?),
@@ -252,7 +252,7 @@ func ProjectHandler(db *sql.DB, owner string) http.HandlerFunc {
 		rows.Close()
 
 		var last sql.NullString
-		db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM sessions WHERE project_id = ?),
+		db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM sessions s WHERE s.project_id = ? AND `+sessions.HasPrompt+`),
 			(SELECT COUNT(*) FROM events WHERE project_id = ?), (SELECT COUNT(*) FROM memories WHERE project_id = ?),
 			(SELECT MAX(occurred_at) FROM events WHERE project_id = ?)`, id, id, id, id).Scan(
 			&d.Stats.Sessions, &d.Stats.Events, &d.Stats.Memories, &last)

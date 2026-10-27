@@ -103,7 +103,13 @@ func TestUIReadAPIs(t *testing.T) {
 	}
 
 	// Session list pages backwards by (last activity, id).
-	postJSON(t, srv, tok, "/api/v1/sessions", model.EnsureSessionRequest{ProjectID: proj.ProjectID, AgentType: "codex", NativeSessionID: "n2"}, nil)
+	// Sessions without a prompt are not listed; this one has one.
+	var sess2 model.EnsureSessionResponse
+	postJSON(t, srv, tok, "/api/v1/sessions", model.EnsureSessionRequest{ProjectID: proj.ProjectID, AgentType: "codex", NativeSessionID: "n2"}, &sess2)
+	postBatch(t, srv, tok, proj.ProjectID, []model.Event{{EventID: "evt_ui_0006", SessionID: &sess2.SessionID, EventType: "user.prompt",
+		OccurredAt: time.Now(), PayloadJSON: `{"prompt":"看一下 CI"}`}})
+	// An empty one (opened and closed) is not.
+	postJSON(t, srv, tok, "/api/v1/sessions", model.EnsureSessionRequest{ProjectID: proj.ProjectID, AgentType: "codex", NativeSessionID: "n3"}, nil)
 	var s1, s2 []model.SessionInfo
 	getJSON(t, srv, tok, "/api/v1/sessions?limit=1", &s1)
 	last := s1[0].StartedAt
@@ -127,7 +133,7 @@ func TestUIReadAPIs(t *testing.T) {
 		t.Fatalf("project detail %d", code)
 	}
 	if len(pd.Locations) != 1 || pd.Locations[0].DeviceName != "laptop" || pd.Locations[0].GitHead != "abc123" ||
-		pd.Stats.Events != 5 || pd.Stats.Memories != 2 || len(pd.Sessions) != 2 {
+		pd.Stats.Events != 6 || pd.Stats.Memories != 2 || len(pd.Sessions) != 2 || pd.Stats.Sessions != 2 {
 		t.Fatalf("project detail = %+v", pd)
 	}
 
@@ -140,10 +146,10 @@ func TestUIReadAPIs(t *testing.T) {
 	if code := getJSON(t, srv, tok, "/api/v1/overview", &ov); code != http.StatusOK {
 		t.Fatalf("overview %d", code)
 	}
-	if ov.Counts.Projects != 1 || ov.Counts.EventsAll != 5 || ov.Counts.Memories != 2 || len(ov.RecentSessions) != 2 || len(ov.LatestMemories) != 2 {
+	if ov.Counts.Projects != 1 || ov.Counts.EventsAll != 6 || ov.Counts.Sessions7d != 2 || ov.Counts.Memories != 2 || len(ov.RecentSessions) != 2 || len(ov.LatestMemories) != 2 {
 		t.Errorf("overview counts = %+v", ov.Counts)
 	}
-	if len(ov.Devices) != 1 || ov.Devices[0].SpoolPending == nil || *ov.Devices[0].SpoolPending != 7 || ov.Devices[0].ClientVersion != "test" || ov.Devices[0].EventsTotal != 5 {
+	if len(ov.Devices) != 1 || ov.Devices[0].SpoolPending == nil || *ov.Devices[0].SpoolPending != 7 || ov.Devices[0].ClientVersion != "test" || ov.Devices[0].EventsTotal != 6 {
 		t.Errorf("overview devices = %+v", ov.Devices)
 	}
 	if ov.Embedding.Enabled {

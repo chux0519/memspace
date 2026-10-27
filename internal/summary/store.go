@@ -108,6 +108,23 @@ func Generate(ctx context.Context, db *sql.DB, sessionID string) (*Summary, erro
 		return nil, err
 	}
 	defer tx.Rollback()
+	// A session nobody talked in (opened and closed, or a CLI subcommand
+	// firing SessionEnd) gets no summary: an empty one only adds noise to
+	// search and context. Drop one stored before this rule.
+	var prompted bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE session_id = ? AND event_type = 'user.prompt')`,
+		sessionID).Scan(&prompted); err != nil {
+		return nil, err
+	}
+	if !prompted {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM session_summaries WHERE session_id = ?`, sessionID); err != nil {
+			return nil, err
+		}
+		if err := search.Delete(ctx, tx, search.KindSummary, sessionID); err != nil {
+			return nil, err
+		}
+		return s, tx.Commit()
+	}
 	j := func(v any) string { b, _ := json.Marshal(v); return string(b) }
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO session_summaries (session_id, project_id, status, objective, latest_request, completed_work,

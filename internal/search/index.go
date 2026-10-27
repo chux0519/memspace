@@ -225,6 +225,35 @@ func Upsert(ctx context.Context, tx *sql.Tx, d *Doc) error {
 	return nil
 }
 
+// Delete removes the document (kind, ref_id) from the index inside tx, if
+// present; its vectors are removed later by the embedding sweep.
+func Delete(ctx context.Context, tx *sql.Tx, kind, refID string) error {
+	var docID int64
+	var title, body, files string
+	err := tx.QueryRowContext(ctx, `SELECT doc_id, title, body, files FROM search_docs WHERE kind = ? AND ref_id = ?`,
+		kind, refID).Scan(&docID, &title, &body, &files)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("search: lookup doc: %w", err)
+	}
+	for _, stmt := range []struct {
+		q    string
+		args []any
+	}{
+		{`INSERT OR IGNORE INTO embedding_orphans (chunk_id, space_id) SELECT chunk_id, space_id FROM embedding_chunks WHERE doc_id = ?`, []any{docID}},
+		{`DELETE FROM embedding_chunks WHERE doc_id = ?`, []any{docID}},
+		{`INSERT INTO search_fts (search_fts, rowid, title, body, files) VALUES ('delete', ?, ?, ?, ?)`, []any{docID, title, body, files}},
+		{`DELETE FROM search_docs WHERE doc_id = ?`, []any{docID}},
+	} {
+		if _, err := tx.ExecContext(ctx, stmt.q, stmt.args...); err != nil {
+			return fmt.Errorf("search: delete doc %d: %w", docID, err)
+		}
+	}
+	return nil
+}
+
 func nullable(s string) any {
 	if s == "" {
 		return nil

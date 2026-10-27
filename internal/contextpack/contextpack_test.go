@@ -15,6 +15,7 @@ import (
 	"github.com/chux0519/memspace/internal/db"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/search"
+	"github.com/chux0519/memspace/internal/sessions"
 	"github.com/chux0519/memspace/internal/summary"
 )
 
@@ -217,5 +218,40 @@ func TestBudgetAndCwd(t *testing.T) {
 	}
 	if _, err := contextpack.Build(context.Background(), f.db, owner, "linux-box", contextpack.Request{Mode: "bogus", Project: webapp}); err == nil {
 		t.Error("unknown mode accepted")
+	}
+}
+
+// Sessions nobody talked in (an agent opened and closed; a CLI subcommand
+// firing SessionEnd) are not offered, summarized, indexed or listed.
+func TestEmptySessionsAreIgnored(t *testing.T) {
+	f := setup(t)
+	f.session("opened", "mac-mini", "codex", "active")
+	f.event("opened", time.Hour, "session.started", map[string]any{"source": "cli"})
+	f.session("cli", "linux-box", "claude-code", "active")
+	f.event("cli", time.Hour, "session.ended", map[string]any{"reason": "other"})
+	// A summary stored before empty sessions were skipped.
+	tx, _ := f.db.Begin()
+	if err := search.Upsert(context.Background(), tx, &search.Doc{Kind: search.KindSummary, RefID: "cli", ProjectID: "webapp",
+		SessionID: "cli", OccurredAt: time.Now(), Title: "", Body: "(empty)"}); err != nil {
+		t.Fatal(err)
+	}
+	tx.Commit()
+	f.summarize("opened", "cli")
+
+	if p := f.build("linux-box", contextpack.Request{Mode: contextpack.ModeSessionStart, Project: webapp}); p.Text != "" {
+		t.Errorf("empty sessions offered as context:\n%s", p.Text)
+	}
+	var docs, sums int
+	f.db.QueryRow(`SELECT COUNT(*) FROM search_docs WHERE kind = 'summary'`).Scan(&docs)
+	f.db.QueryRow(`SELECT COUNT(*) FROM session_summaries`).Scan(&sums)
+	if docs != 0 || sums != 0 {
+		t.Errorf("summary docs = %d, summaries = %d; want none", docs, sums)
+	}
+	list, err := sessions.List(context.Background(), f.db, owner, sessions.Query{})
+	if err != nil || len(list) != 0 {
+		t.Errorf("listed empty sessions: %+v %v", list, err)
+	}
+	if all, _ := sessions.List(context.Background(), f.db, owner, sessions.Query{IncludeEmpty: true}); len(all) != 2 {
+		t.Errorf("IncludeEmpty listed %d sessions, want 2", len(all))
 	}
 }

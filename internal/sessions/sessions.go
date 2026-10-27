@@ -27,6 +27,12 @@ func parseNullTime(s sql.NullString) *time.Time {
 	return &t
 }
 
+// HasPrompt is the SQL condition (on sessions aliased "s") for a session the
+// user actually talked in. Sessions without a prompt (an agent opened and
+// closed, or a CLI subcommand such as `claude mcp list` that fires
+// SessionEnd) are kept but not listed, summarized or offered as context.
+const HasPrompt = `EXISTS (SELECT 1 FROM events ep WHERE ep.session_id = s.session_id AND ep.event_type = 'user.prompt')`
+
 // Query filters List.
 type Query struct {
 	ProjectIDs []string // empty: all of the owner's projects
@@ -41,6 +47,8 @@ type Query struct {
 	Before   *time.Time
 	BeforeID string
 	Limit    int
+	// IncludeEmpty also lists sessions without a user prompt.
+	IncludeEmpty bool
 }
 
 const sessionColumns = `
@@ -75,6 +83,9 @@ func scanSession(sc interface{ Scan(...any) error }) (model.SessionInfo, error) 
 func List(ctx context.Context, db *sql.DB, owner string, q Query) ([]model.SessionInfo, error) {
 	where := []string{"p.user_id = ?"}
 	args := []any{owner}
+	if !q.IncludeEmpty {
+		where = append(where, HasPrompt)
+	}
 	if len(q.ProjectIDs) > 0 {
 		where = append(where, "s.project_id IN ("+strings.TrimSuffix(strings.Repeat("?,", len(q.ProjectIDs)), ",")+")")
 		for _, id := range q.ProjectIDs {
