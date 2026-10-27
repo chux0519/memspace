@@ -38,15 +38,21 @@ type Adapter interface {
 	Normalizer
 }
 
-// MCPOptions describe how an agent should reach MemSpace's MCP endpoint
+// MCPOptions describe how an agent should reach MemSpace's MCP tools
 // without storing a secret in the agent's configuration.
 type MCPOptions struct {
-	URL string // e.g. https://memory.example.com/mcp
-	// HeaderCommand prints {"Authorization": "Bearer …"} (Claude Code headersHelper).
-	HeaderCommand string
-	// TokenEnv names the environment variable holding the token (Codex).
-	TokenEnv string
-	Out      io.Writer
+	URL string // server endpoint the bridge forwards to, for messages
+	// Command runs the stdio bridge (`memspace mcp stdio`), as argv.
+	Command []string
+	Out     io.Writer
+}
+
+// IsBridgeCommand reports whether a registered stdio command runs
+// MemSpace's MCP bridge.
+func IsBridgeCommand(command string, args []string) bool {
+	n := len(args)
+	return n >= 2 && args[n-2] == "mcp" && args[n-1] == "stdio" &&
+		strings.Contains(strings.ToLower(command), "memspace")
 }
 
 // MCPRegistrar is implemented by adapters that can register the MCP server.

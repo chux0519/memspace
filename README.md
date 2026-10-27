@@ -84,15 +84,19 @@ detected agents (Claude Code, Codex) and runs the checks:
 
 ```bash
 memspace onboard http://SERVER:8765 --invite msi_…
-export MEMSPACE_MCP_TOKEN="$(memspace mcp token)"   # for Codex's MCP client; add to your shell profile
 ```
+
+Agents reach MemSpace's MCP tools through a local stdio bridge,
+`memspace mcp stdio`, which reads this device's credentials itself: agent
+configs hold only that command, and nothing needs to be exported in your
+shell.
 
 Step by step instead:
 
 ```bash
 memspace client connect http://SERVER:8765 --invite msi_…   # saves ~/.memspace/credentials.json
-memspace agent install claude          # hooks in ~/.claude/settings.json
-memspace agent install codex [--trust] # hooks in ~/.codex/hooks.json + rollout importer
+memspace agent install claude          # hooks in ~/.claude/settings.json + MCP (stdio bridge)
+memspace agent install codex [--trust] # hooks in ~/.codex/hooks.json + rollout importer + MCP
 memspace agent doctor                  # end-to-end checks, incl. running the installed hook
 memspace client status                 # online/offline, pending/rejected/dropped counts
 ```
@@ -252,9 +256,10 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o memspace-darwin-arm64 ./cmd/m
 
 - **Tokens:** device tokens are 32 random bytes, shown once and stored as
   SHA-256 hashes. Registration needs a single-use invite. MCP uses a
-  separate read-only token per device (`msm_…`), revoked with the device; no
-  secret is written into agent configs (Claude Code gets a `headersHelper`,
-  Codex a `bearer_token_env_var`).
+  separate read-only token per device (`msm_…`), revoked with the device.
+  Agents start the stdio bridge (`memspace mcp stdio`), which reads it from
+  `~/.memspace/credentials.json` (mode 0600), so no secret is written into
+  agent configs or the shell environment.
 - **Redaction:** secrets are redacted on the client and again on the server.
   Content of `.env`, keys and credential files is not captured. Strings are
   capped at 8 KB and payloads at 64 KB.
@@ -338,7 +343,7 @@ also accept a web UI session. Writes need a device token.
 | `POST /api/v1/ui/login-links`, `/ui/login`, `/ui/logout`, `GET /ui/session` | browser sign-in |
 | `/api/v1/admin/…` | invites, device revocation, login links, browser sessions, downloads (admin sessions only) |
 | `GET /downloads/{name}` | client binaries from `server.downloads_dir` (no auth) |
-| `/mcp` | MCP, streamable HTTP, read-only tools |
+| `/mcp` | MCP, streamable HTTP, read-only tools (agents use it through `memspace mcp stdio`) |
 
 ## Development
 

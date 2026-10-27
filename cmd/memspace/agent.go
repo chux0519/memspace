@@ -43,10 +43,20 @@ func hookCommand(cfg *config.Config, bin, agent string) (string, error) {
 // selfCommand is a command line that runs this binary with args, pinned
 // like hookCommand.
 func selfCommand(cfg *config.Config, bin string, args ...string) (string, error) {
+	argv, err := selfArgv(cfg, bin, args...)
+	if err != nil {
+		return "", err
+	}
+	return adapter.Command(argv[0], "", "", argv[1:]...), nil
+}
+
+// selfArgv is selfCommand as an argument vector, for agents that start the
+// command without a shell (stdio MCP servers).
+func selfArgv(cfg *config.Config, bin string, args ...string) ([]string, error) {
 	if bin == "" {
 		exe, err := os.Executable()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 			exe = resolved
@@ -55,7 +65,7 @@ func selfCommand(cfg *config.Config, bin string, args ...string) (string, error)
 	}
 	bin, err := filepath.Abs(bin)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	home := ""
 	if cfg.Client.Home != config.Default().Client.Home || homeFlag != "" {
@@ -69,7 +79,14 @@ func selfCommand(cfg *config.Config, bin string, args ...string) (string, error)
 	} else {
 		cfgFile = ""
 	}
-	return adapter.Command(bin, home, cfgFile, args...), nil
+	argv := []string{bin}
+	if home != "" {
+		argv = append(argv, "--home", home)
+	}
+	if cfgFile != "" {
+		argv = append(argv, "--config", cfgFile)
+	}
+	return append(argv, args...), nil
 }
 
 func looksTemporary(bin string) bool {

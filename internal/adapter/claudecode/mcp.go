@@ -21,23 +21,22 @@ func (a *Adapter) claudeCmd(ctx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// RegisterMCP adds MemSpace as a user-scoped HTTP MCP server. Credentials
-// come from a headersHelper command at connect time, so Claude Code's
-// configuration never contains the token.
+// RegisterMCP adds MemSpace as a user-scoped stdio MCP server running the
+// bridge (`memspace mcp stdio`), which reads this device's credentials
+// itself, so Claude Code's configuration never contains the token.
 func (a *Adapter) RegisterMCP(ctx context.Context, opts adapter.MCPOptions) error {
+	cfg, _ := json.Marshal(map[string]any{"type": "stdio", "command": opts.Command[0], "args": opts.Command[1:]})
 	if _, err := exec.LookPath("claude"); err != nil {
-		cfg, _ := json.Marshal(map[string]string{"type": "http", "url": opts.URL, "headersHelper": opts.HeaderCommand})
 		fmt.Fprintf(opts.Out, "claude CLI not found; register the MCP server manually:\n  claude mcp add-json -s user %s '%s'\n", adapter.MCPServerName, cfg)
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	a.claudeCmd(ctx, "mcp", "remove", "-s", "user", adapter.MCPServerName).Run() // replace any previous entry
-	cfg, _ := json.Marshal(map[string]string{"type": "http", "url": opts.URL, "headersHelper": opts.HeaderCommand})
 	if out, err := a.claudeCmd(ctx, "mcp", "add-json", "-s", "user", adapter.MCPServerName, string(cfg)).CombinedOutput(); err != nil {
 		return fmt.Errorf("claude mcp add-json: %v: %s", err, strings.TrimSpace(string(out)))
 	}
-	fmt.Fprintf(opts.Out, "Registered MCP server %q for Claude Code (%s)\n", adapter.MCPServerName, opts.URL)
+	fmt.Fprintf(opts.Out, "Registered MCP server %q for Claude Code (stdio bridge to %s)\n", adapter.MCPServerName, opts.URL)
 	return nil
 }
 
