@@ -99,6 +99,19 @@ function shellQuote(s: string) {
   return /^[A-Za-z0-9._-]+$/.test(s) ? s : "'" + s.replace(/'/g, `'\\''`) + "'"
 }
 
+// Instructions an agent follows to set up a device (docs/agent-setup.md).
+const agentSetupURL = 'https://raw.githubusercontent.com/chux0519/memspace/main/docs/agent-setup.md'
+
+function agentPrompt(invite: CreatedInvite) {
+  const name = invite.note.trim()
+  return (
+    `帮我在这台机器上安装 MemSpace：按 ${agentSetupURL} 的步骤操作。` +
+    `服务器 ${window.location.origin}，邀请码 ${invite.code}` +
+    (name ? `，设备名 ${name}` : '') +
+    '。'
+  )
+}
+
 function setupCommands(p: (typeof platforms)[number], invite: CreatedInvite, downloads: ClientDownload[]) {
   const origin = window.location.origin
   const name = invite.note.trim()
@@ -169,6 +182,8 @@ function AddDevice({ downloads, onCreated }: { downloads: ClientDownload[]; onCr
               <div className="muted small">只显示这一次 · {absTime(invite.expires_at)} 前有效</div>
             </div>
           </div>
+          <CopyBlock label="让 Agent 安装：复制给这台机器上的 Claude Code 或 Codex" text={agentPrompt(invite)} />
+          <p className="hint">Agent 会自己识别平台、下载 client、运行 onboard 并自检；修改它的配置前会征求你的同意。也可以按下面的命令手动安装。</p>
           <div className="tabs" role="tablist">
             {platforms.map((x) => (
               <button key={x.key} role="tab" aria-selected={x.key === platform} className={'tab' + (x.key === platform ? ' on' : '')} onClick={() => setPlatform(x.key)}>

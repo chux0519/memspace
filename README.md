@@ -91,6 +91,19 @@ Agents reach MemSpace's MCP tools through a local stdio bridge,
 configs hold only that command, and nothing needs to be exported in your
 shell.
 
+**Or let your agent do it.** Paste this into Claude Code or Codex on the
+new device (the web UI's Add device panel fills in the values):
+
+```text
+Set up MemSpace on this machine: follow
+https://raw.githubusercontent.com/chux0519/memspace/main/docs/agent-setup.md
+Server http://SERVER:8765, invite msi_…
+```
+
+The agent detects the platform, downloads the client from the server (or
+builds it with `go install`), runs `onboard` and the checks, and asks
+before changing its own configuration. See [docs/agent-setup.md](docs/agent-setup.md).
+
 Step by step instead:
 
 ```bash
