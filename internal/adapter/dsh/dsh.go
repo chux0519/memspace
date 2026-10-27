@@ -58,7 +58,50 @@ type Adapter struct {
 
 func (a *Adapter) Name() string { return agentName }
 
-var wrapperHomeRE = regexp.MustCompile(`(?m)^\s*(?:export\s+)?DSH_HOME=["']?([^"'\s]+)["']?\s*$`)
+// wrapperHomeRE finds DSH_HOME in a launcher script: `export DSH_HOME=…`
+// (sh), `set "DSH_HOME=…"` (cmd) or `$env:DSH_HOME = "…"` (PowerShell).
+var wrapperHomeRE = regexp.MustCompile(`(?mi)^\s*(?:export\s+|set\s+|\$env:)?"?DSH_HOME"?\s*=\s*["']?([^"'\r\n]+?)["']?\s*$`)
+
+var percentVarRE = regexp.MustCompile(`%([A-Za-z_][A-Za-z0-9_]*)%`)
+
+// homeFromWrapper reads DSH_HOME from a small launcher script.
+func homeFromWrapper(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil || fi.Size() >= 64<<10 {
+		return ""
+	}
+	b, err := os.ReadFile(path)
+	ext := strings.ToLower(filepath.Ext(path))
+	if err != nil || !(bytes.HasPrefix(b, []byte("#!")) || ext == ".cmd" || ext == ".bat" || ext == ".ps1") {
+		return ""
+	}
+	m := wrapperHomeRE.FindSubmatch(b)
+	if m == nil {
+		return ""
+	}
+	v := percentVarRE.ReplaceAllStringFunc(string(m[1]), func(s string) string { return os.Getenv(s[1 : len(s)-1]) })
+	return filepath.Clean(os.ExpandEnv(v))
+}
+
+// HooksRunInPowerShell: DSH runs hook commands with PowerShell on Windows
+// and bash elsewhere.
+var HooksRunInPowerShell = runtime.GOOS == "windows"
+
+// PowerShellCommand renders argv as a PowerShell command line. The call
+// operator makes a quoted program path a command rather than a string.
+func PowerShellCommand(argv []string) string {
+	parts := make([]string, len(argv))
+	for i, a := range argv {
+		if a != "" && strings.IndexFunc(a, func(r rune) bool {
+			return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune(`/\._-:`, r))
+		}) < 0 {
+			parts[i] = a
+		} else {
+			parts[i] = "'" + strings.ReplaceAll(a, "'", "''") + "'"
+		}
+	}
+	return "& " + strings.Join(parts, " ")
+}
 
 // DSHHome returns the DSH home: $DSH_HOME, else the one a `dsh` wrapper
 // script on PATH exports (installers that keep DSH outside ~/.dsh write
@@ -74,12 +117,8 @@ func (a *Adapter) DSHHome() string {
 		return st.DSHHome
 	}
 	if p, err := exec.LookPath("dsh"); err == nil {
-		if fi, err := os.Stat(p); err == nil && fi.Size() < 64<<10 {
-			if b, err := os.ReadFile(p); err == nil && bytes.HasPrefix(b, []byte("#!")) {
-				if m := wrapperHomeRE.FindSubmatch(b); m != nil {
-					return os.ExpandEnv(string(m[1]))
-				}
-			}
+		if h := homeFromWrapper(p); h != "" {
+			return h
 		}
 	}
 	home, _ := os.UserHomeDir()

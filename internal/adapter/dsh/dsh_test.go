@@ -389,3 +389,40 @@ func TestDSHHomeFromWrapper(t *testing.T) {
 		t.Errorf("DSHHome = %q", got)
 	}
 }
+
+func TestHomeFromWrapperScripts(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("USERPROFILE", `C:\Users\me`)
+	for name, body := range map[string]string{
+		"sh":      "#!/bin/sh\nexport DSH_HOME=\"$USERPROFILE/dsh\"\nexec node bin.js \"$@\"\n",
+		"dsh.cmd": "@echo off\r\nset \"DSH_HOME=%USERPROFILE%\\dsh\"\r\nnode bin.js %*\r\n",
+		"dsh.ps1": "$env:DSH_HOME = \"C:\\Users\\me\\dsh\"\nnode bin.js @args\n",
+	} {
+		p := filepath.Join(dir, name)
+		os.WriteFile(p, []byte(body), 0o755)
+		got := homeFromWrapper(p)
+		if !strings.HasSuffix(filepath.ToSlash(got), "dsh") || !strings.Contains(got, "me") {
+			t.Errorf("%s: %q", name, got)
+		}
+	}
+	os.WriteFile(filepath.Join(dir, "dsh.exe"), []byte("MZ binary DSH_HOME=/x\n"), 0o755)
+	if got := homeFromWrapper(filepath.Join(dir, "dsh.exe")); got != "" {
+		t.Errorf("binary read as a script: %q", got)
+	}
+}
+
+// DSH runs hooks with PowerShell on Windows: a quoted program path needs
+// the call operator, and the command must still be recognized as ours.
+func TestPowerShellCommand(t *testing.T) {
+	cmd := PowerShellCommand([]string{`C:\Users\Jo Doe\bin\memspace.exe`, "--home", `C:\Users\Jo Doe\.memspace`, "hook", "dsh"})
+	want := `& 'C:\Users\Jo Doe\bin\memspace.exe' --home 'C:\Users\Jo Doe\.memspace' hook dsh`
+	if cmd != want {
+		t.Errorf("got  %s\nwant %s", cmd, want)
+	}
+	if !adapter.IsMemSpaceHook(cmd, "dsh") {
+		t.Error("not recognized as a MemSpace hook")
+	}
+	if got := PowerShellCommand([]string{`C:\bin\it's\memspace.exe`, "hook", "dsh"}); got != `& 'C:\bin\it''s\memspace.exe' hook dsh` {
+		t.Errorf("quote escaping: %s", got)
+	}
+}

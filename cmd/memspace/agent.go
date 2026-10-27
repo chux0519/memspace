@@ -39,6 +39,13 @@ func agentCmd(use string) *cobra.Command {
 // hookCommand is the command line agents run, pinned to this binary and to
 // any non-default --home/--config so hooks find the same client state.
 func hookCommand(cfg *config.Config, bin, agent string) (string, error) {
+	if agent == "dsh" && dsh.HooksRunInPowerShell {
+		argv, err := selfArgv(cfg, bin, "hook", agent)
+		if err != nil {
+			return "", err
+		}
+		return dsh.PowerShellCommand(argv), nil
+	}
 	return selfCommand(cfg, bin, "hook", agent)
 }
 
