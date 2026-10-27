@@ -21,22 +21,29 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      # Binaries go outside the work tree: an untracked file in it would make
+      # the next build's version "+dirty".
       - name: Build clients
         run: |
-          mkdir -p dist
+          mkdir -p "$RUNNER_TEMP/dist"
           for p in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
             os=${p%/*}; arch=${p#*/}; ext=; [ "$os" = windows ] && ext=.exe
-            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -o "dist/memspace-$os-$arch$ext" ./cmd/memspace
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -o "$RUNNER_TEMP/dist/memspace-$os-$arch$ext" ./cmd/memspace
           done
-      - name: Check the version
+      - name: Check the versions
         run: |
-          got=$(dist/memspace-linux-amd64 --version)
+          got=$("$RUNNER_TEMP/dist/memspace-linux-amd64" --version)
           echo "$got"
           [ "$got" = "memspace version $GITHUB_REF_NAME" ]
+          for f in "$RUNNER_TEMP"/dist/*; do
+            v=$(go version -m "$f" | awk '$1 == "mod" { print $3 }')
+            echo "$f $v"
+            [ "$v" = "$GITHUB_REF_NAME" ]
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: clients
-          path: dist/
+          path: ${{ runner.temp }}/dist/
 
   servers:
     strategy:
@@ -57,17 +64,17 @@ jobs:
         run: CGO_ENABLED=1 go test -tags sqlite_fts5 -short -count=1 ./...
       - name: Build
         run: |
-          mkdir -p dist
-          CGO_ENABLED=1 go build -tags sqlite_fts5 -trimpath -o "dist/memspace-server-${{ matrix.os }}-${{ matrix.arch }}" ./cmd/memspace
+          mkdir -p "$RUNNER_TEMP/dist"
+          CGO_ENABLED=1 go build -tags sqlite_fts5 -trimpath -o "$RUNNER_TEMP/dist/memspace-server-${{ matrix.os }}-${{ matrix.arch }}" ./cmd/memspace
       - name: Check the version
         run: |
-          got=$(dist/memspace-server-${{ matrix.os }}-${{ matrix.arch }} --version)
+          got=$("$RUNNER_TEMP/dist/memspace-server-${{ matrix.os }}-${{ matrix.arch }}" --version)
           echo "$got"
           [ "$got" = "memspace version $GITHUB_REF_NAME" ]
       - uses: actions/upload-artifact@v4
         with:
           name: server-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/
+          path: ${{ runner.temp }}/dist/
 
   release:
     needs: [clients, servers]
