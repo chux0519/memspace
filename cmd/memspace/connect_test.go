@@ -40,7 +40,8 @@ func TestConnectByApproval(t *testing.T) {
 		t.Fatalf("first run: %v\n%s", err, out.String())
 	}
 	m := codeRE.FindStringSubmatch(out.String())
-	if m == nil || !strings.Contains(out.String(), srv.URL+"/#/admin") || !strings.Contains(out.String(), "memspace server approve "+m[1]) {
+	if m == nil || !strings.Contains(out.String(), srv.URL+"/#/admin") || !strings.Contains(out.String(), "memspace server approve "+m[1]) ||
+		!strings.Contains(out.String(), "Show the user the code "+m[1]) || !strings.Contains(out.String(), "Then run:  memspace ") {
 		t.Fatalf("first run output:\n%s", out.String())
 	}
 	code := m[1]

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/chux0519/memspace/internal/client"
@@ -75,7 +76,9 @@ func pendingRequestPath(cfg *config.Config) string {
 	return filepath.Join(cfg.Client.StateDir(), "device-request.json")
 }
 
-// errNotApproved means the request is still pending after waiting.
+// errNotApproved means the request is still pending after waiting. The
+// command exits with status 3 and no "error:" prefix: with --wait 0 this is
+// the expected outcome, not a failure.
 var errNotApproved = errors.New("not approved yet")
 
 // approveDevice asks the administrator to approve this device and waits up
@@ -138,8 +141,13 @@ func approveDevice(ctx context.Context, cfg *config.Config, c *client.Client, na
 			return "", "", "", errors.New("the approval request expired; run this command again for a new code")
 		}
 		if !time.Now().Before(deadline) {
-			return "", "", "", fmt.Errorf("%w: once %s is approved, run this command again to finish (the code stays valid until %s)",
-				errNotApproved, pr.UserCode, pr.ExpiresAt.Local().Format("15:04"))
+			// Spelled out for agents running setup: they must relay the
+			// code and wait for the user before running the command again.
+			fmt.Fprintf(out, "Not approved yet. Next:\n")
+			fmt.Fprintf(out, "  1. Show the user the code %s and how to approve it (above).\n", pr.UserCode)
+			fmt.Fprintf(out, "  2. Wait until they say they have approved it (valid until %s).\n", pr.ExpiresAt.Local().Format("15:04"))
+			fmt.Fprintf(out, "  3. Then run:  %s\n", rerunCommand())
+			return "", "", "", errNotApproved
 		}
 		select {
 		case <-ctx.Done():
@@ -147,6 +155,40 @@ func approveDevice(ctx context.Context, cfg *config.Config, c *client.Client, na
 		case <-time.After(2 * time.Second):
 		}
 	}
+}
+
+// rerunCommand is this command line with a short wait, to finish setup
+// after approval.
+func rerunCommand() string {
+	args := []string{"memspace"}
+	set := false
+	for i := 1; i < len(os.Args); i++ {
+		a := os.Args[i]
+		switch {
+		case a == "--wait" && i+1 < len(os.Args):
+			args = append(args, "--wait", "2m")
+			i++
+			set = true
+		case strings.HasPrefix(a, "--wait="):
+			args = append(args, "--wait=2m")
+			set = true
+		default:
+			args = append(args, shellWord(a))
+		}
+	}
+	if !set {
+		args = append(args, "--wait", "2m")
+	}
+	return strings.Join(args, " ")
+}
+
+func shellWord(s string) string {
+	if s != "" && strings.IndexFunc(s, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("/._-+:=@,", r))
+	}) < 0 {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func writePrivateJSON(path string, v any) error {

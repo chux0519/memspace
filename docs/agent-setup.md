@@ -136,15 +136,14 @@ MemSpace's hooks (otherwise they approve them in Codex's `/hooks`). Add
 `--name <name>` to choose the device name (default: host name), and
 `--agent claude` or `--agent codex` to set up only some agents.
 
-**6a. Ask to join.** `--wait 0` shows the code and exits at once, so you
-can relay it:
+**6a. Ask to join.** `--wait 0` shows the code and exits at once
+(status 3), so you can relay it:
 
 ```bash
 memspace onboard "$SERVER" --wait 0 [--trust]
 ```
 
-The output looks like this, and the command ends with
-`error: not approved yet: …`. That is expected, not a failure:
+The output looks like this. Exit status 3 is expected, not a failure:
 
 ```text
 This device needs approval. Ask the MemSpace administrator to approve it:
@@ -152,18 +151,27 @@ This device needs approval. Ask the MemSpace administrator to approve it:
   Code:    K7QF-2M9P   (macmini · darwin, expires 16:20)
   Web UI:  http://192.168.1.13:8770/#/admin  (管理 → 待审批设备 → 批准)
   Or on the server:  memspace server approve K7QF-2M9P
+
+Not approved yet. Next:
+  1. Show the user the code K7QF-2M9P and how to approve it (above).
+  2. Wait until they say they have approved it (valid until 16:20).
+  3. Then run:  memspace onboard http://192.168.1.13:8770 --wait 2m
 ```
 
-Tell the user the code and both ways to approve, and ask them to tell you
-when they have approved it. Mention:
+**Stop here and end your turn.** Your reply to the user must contain the
+code and both ways to approve, and ask them to tell you when they have
+approved it. Do not run 6b, or any other command that waits for approval,
+in the same turn: the user cannot approve a code they have not seen.
+Mention:
 
 - In the web UI they must be signed in as administrator. If they are not,
   `memspace server login-link` on the server prints a sign-in link.
 - They should check that the code in the UI matches the one you showed.
 - The code is valid for 10 minutes.
 
-**6b. Finish.** When the user says it is approved, run the same command
-again (it resumes the same request; the short wait covers a slow click):
+**6b. Finish.** Only after the user says it is approved, run the command
+from step 3 of the output (the same command with a short wait; it resumes
+the same request):
 
 ```bash
 memspace onboard "$SERVER" --wait 2m [--trust]

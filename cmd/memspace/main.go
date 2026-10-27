@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -54,6 +55,9 @@ func main() {
 	root.AddCommand(uiCmd())
 
 	if err := root.Execute(); err != nil {
+		if errors.Is(err, errNotApproved) {
+			os.Exit(3) // the next steps are already printed
+		}
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
