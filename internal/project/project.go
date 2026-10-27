@@ -56,8 +56,19 @@ func Detect(cwd string) Hint {
 // findGit walks up from dir to the nearest .git (directory, or a file pointing
 // at a worktree gitdir). Returns the work tree root, the git dir and the
 // common dir (shared config/refs for worktrees).
+//
+// A repository at the home directory (dotfiles) only counts when dir is the
+// home directory itself: the walk does not climb into it from below, or
+// every directory outside a repository would belong to the dotfiles.
 func findGit(dir string) (root, gitDir, commonDir string) {
+	home, _ := os.UserHomeDir()
+	if home != "" {
+		home = filepath.Clean(home)
+	}
 	for d := dir; ; d = filepath.Dir(d) {
+		if d == home && d != dir {
+			return "", "", ""
+		}
 		p := filepath.Join(d, ".git")
 		if fi, err := os.Stat(p); err == nil {
 			if fi.IsDir() {

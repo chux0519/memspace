@@ -80,3 +80,27 @@ func TestDetectNoGit(t *testing.T) {
 		t.Errorf("hint = %+v", h)
 	}
 }
+
+// A dotfiles repository at the home directory is not the project of every
+// directory below it, only of the home directory itself. Repositories below
+// home are unaffected.
+func TestDetectHomeRepo(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	write(t, filepath.Join(home, ".git", "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(home, ".git", "config"), "[remote \"origin\"]\n\turl = git@github.com:me/dotfiles.git\n")
+	write(t, filepath.Join(home, "src", "app", ".git", "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(home, "src", "app", ".git", "config"), "[remote \"origin\"]\n\turl = git@github.com:me/app.git\n")
+	notes := filepath.Join(home, "notes", "drafts")
+	os.MkdirAll(notes, 0o755)
+
+	if h := Detect(notes); h.GitIdentity != "" || h.Root != notes || h.Name != "drafts" {
+		t.Errorf("below home: %+v", h)
+	}
+	if h := Detect(home); h.GitIdentity != "github.com/me/dotfiles" {
+		t.Errorf("home itself: %+v", h)
+	}
+	if h := Detect(filepath.Join(home, "src", "app")); h.GitIdentity != "github.com/me/app" {
+		t.Errorf("repo below home: %+v", h)
+	}
+}
