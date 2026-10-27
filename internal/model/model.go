@@ -94,6 +94,38 @@ type RegisterDeviceResponse struct {
 	Token    string `json:"token"` // plaintext, shown only at registration
 }
 
+// DeviceRequestCreate is the body for POST /api/v1/device-requests: ask to
+// join without an invite, pending an administrator's approval.
+type DeviceRequestCreate struct {
+	Name          string `json:"name"`
+	Platform      string `json:"platform"`
+	ClientVersion string `json:"client_version,omitempty"`
+}
+
+// DeviceRequestCreated is the response: the code to show for comparison and
+// the claim secret only this device holds.
+type DeviceRequestCreated struct {
+	RequestID  string    `json:"request_id"`
+	UserCode   string    `json:"user_code"`
+	ClaimToken string    `json:"claim_token"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+// DeviceRequestClaim is the body for POST /api/v1/device-requests/claim.
+type DeviceRequestClaim struct {
+	ClaimToken string `json:"claim_token"`
+}
+
+// DeviceRequestStatus answers a claim: pending, approved (with the device
+// token, returned once), denied, expired or claimed.
+type DeviceRequestStatus struct {
+	Status    string    `json:"status"`
+	ExpiresAt time.Time `json:"expires_at"`
+	DeviceID  string    `json:"device_id,omitempty"`
+	Name      string    `json:"name,omitempty"`
+	Token     string    `json:"token,omitempty"`
+}
+
 // BatchEventsRequest is the body for POST /api/v1/events/batch.
 type BatchEventsRequest struct {
 	ProjectID string  `json:"project_id"`

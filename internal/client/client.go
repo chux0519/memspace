@@ -170,6 +170,36 @@ func (c *Client) Register(ctx context.Context, name, platform, invite string) (d
 	return resp.DeviceID, resp.Token, nil
 }
 
+// RequestDevice asks to join without an invite; an administrator approves
+// the request (POST /api/v1/device-requests).
+func (c *Client) RequestDevice(ctx context.Context, name, platform, version string) (*model.DeviceRequestCreated, error) {
+	var resp model.DeviceRequestCreated
+	req := model.DeviceRequestCreate{Name: name, Platform: platform, ClientVersion: version}
+	if err := c.do(ctx, "POST", "/api/v1/device-requests", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ClaimDevice polls a device request. Status is "pending", "approved" (with
+// the device token), "denied", "expired" (also when already claimed) or
+// "unknown".
+func (c *Client) ClaimDevice(ctx context.Context, claimToken string) (*model.DeviceRequestStatus, error) {
+	var resp model.DeviceRequestStatus
+	err := c.do(ctx, "POST", "/api/v1/device-requests/claim", model.DeviceRequestClaim{ClaimToken: claimToken}, &resp)
+	switch {
+	case err == nil:
+		return &resp, nil
+	case IsStatus(err, http.StatusForbidden):
+		return &model.DeviceRequestStatus{Status: "denied"}, nil
+	case IsStatus(err, http.StatusGone):
+		return &model.DeviceRequestStatus{Status: "expired"}, nil
+	case IsStatus(err, http.StatusNotFound):
+		return &model.DeviceRequestStatus{Status: "unknown"}, nil
+	}
+	return nil, err
+}
+
 // EnsureProject idempotently resolves a project by Git identity or name.
 func (c *Client) EnsureProject(ctx context.Context, name, gitIdentity string) (string, error) {
 	req := model.EnsureProjectRequest{Name: name}

@@ -44,6 +44,10 @@ func NewWithOptions(db *sql.DB, ownerUserID string, opts Options) http.Handler {
 
 	// Device registration — no token, but a one-time invite is required.
 	r.Post("/api/v1/devices", handler.RegisterDevice(db, ownerUserID))
+	// Join by approval: anyone can ask (capped, expiring); only the
+	// holder of the claim secret gets the token, after an admin approves.
+	r.Post("/api/v1/device-requests", handler.CreateDeviceRequest(db))
+	r.Post("/api/v1/device-requests/claim", handler.ClaimDeviceRequest(db, ownerUserID))
 
 	// MCP (streamable HTTP); accepts the device token or its read-only MCP token.
 	r.Handle("/mcp", mcpserver.Handler(db, ownerUserID))
@@ -98,6 +102,9 @@ func NewWithOptions(db *sql.DB, ownerUserID string, opts Options) http.Handler {
 		r.Post("/api/v1/admin/devices/{id}/revoke", handler.RevokeDeviceHandler(db, ownerUserID))
 		r.Post("/api/v1/admin/login-links", handler.AdminLoginLink(db, ownerUserID))
 		r.Get("/api/v1/admin/ui-sessions", handler.ListUISessions(db, ownerUserID))
+		r.Get("/api/v1/admin/device-requests", handler.ListDeviceRequests(db))
+		r.Post("/api/v1/admin/device-requests/{id}/approve", handler.DecideDeviceRequest(db, true))
+		r.Post("/api/v1/admin/device-requests/{id}/deny", handler.DecideDeviceRequest(db, false))
 		r.Delete("/api/v1/admin/ui-sessions/{id}", handler.RevokeUISessionHandler(db, ownerUserID))
 		r.Get("/api/v1/admin/downloads", handler.DownloadsHandler(opts.DownloadsDir))
 	})

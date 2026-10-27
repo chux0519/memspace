@@ -100,7 +100,29 @@ const nav: [string, string][] = [
 ]
 const navIcon: Record<string, string> = { '': 'overview', projects: 'projects', sessions: 'sessions', search: 'search', memories: 'memories', devices: 'devices', admin: 'admin' }
 
+// Number of devices waiting for approval, for the admin nav item.
+function usePendingDevices(admin: boolean) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (!admin) return
+    let alive = true
+    const check = () =>
+      api.admin.deviceRequests().then(
+        (r) => alive && setN(r.filter((x) => x.status === 'pending').length),
+        () => {},
+      )
+    check()
+    const t = setInterval(check, 10000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [admin])
+  return n
+}
+
 function Shell({ route, admin, onLogout, children }: { route: Route; admin: boolean; onLogout: () => void; children: React.ReactNode }) {
+  const pending = usePendingDevices(admin)
   const section = route.path[0] ?? ''
   const [q, setQ] = useState('')
   const submit = (e: FormEvent) => {
@@ -142,6 +164,7 @@ function Shell({ route, admin, onLogout, children }: { route: Route; admin: bool
               <a href={href('admin')} className={current === 'admin' ? 'active' : ''}>
                 <Icon name="admin" />
                 <span>管理</span>
+                {pending > 0 && <span className="nav-count" title={`${pending} 台设备等待批准`}>{pending}</span>}
               </a>
             </>
           )}

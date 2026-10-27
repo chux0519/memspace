@@ -72,42 +72,41 @@ loginctl enable-linger "$USER"   # keep user services running after logout
 
 ### 2. Connect devices
 
-Create a one-time invite on the server (or in the web UI under
-Administration, which also shows copy-paste setup commands per platform):
-
-```bash
-memspace server invite            # prints msi_…, valid 24 h (--ttl)
-```
-
 On each device, one command connects it, installs hooks and MCP for the
 detected agents (Claude Code, Codex) and runs the checks:
 
 ```bash
-memspace onboard http://SERVER:8765 --invite msi_…
+memspace onboard http://SERVER:8765
 ```
+
+The device asks to join and shows a code (e.g. `K7QF-2M9P`). Approve it in
+the web UI under Administration (管理 → 待审批设备), after checking that the
+code matches, or on the server with `memspace server approve K7QF-2M9P`;
+the device then finishes on its own. Requests expire after 10 minutes. To
+skip approval, create a one-time invite (`memspace server invite`, or Add
+device in the web UI) and pass `--invite msi_…`.
 
 Agents reach MemSpace's MCP tools through a local stdio bridge,
 `memspace mcp stdio`, which reads this device's credentials itself: agent
 configs hold only that command, and nothing needs to be exported in your
 shell.
 
-**Or let your agent do it.** Paste this into Claude Code or Codex on the
-new device (the web UI's Add device panel fills in the values):
+**Or let your agent do it.** Say this to Claude Code or Codex on the new
+device:
 
 ```text
 Set up MemSpace on this machine: follow
 https://raw.githubusercontent.com/chux0519/memspace/main/docs/agent-setup.md
-Server http://SERVER:8765, invite msi_…
 ```
 
-The agent detects the platform, downloads the client from the server (or
-builds it with `go install`), runs `onboard` and the checks, and asks
-before changing its own configuration. See [docs/agent-setup.md](docs/agent-setup.md).
+The agent asks where your server is, installs the client, and tells you
+the code to approve; it asks before changing its own configuration. See
+[docs/agent-setup.md](docs/agent-setup.md).
 
 Step by step instead:
 
 ```bash
-memspace client connect http://SERVER:8765 --invite msi_…   # saves ~/.memspace/credentials.json
+memspace client connect http://SERVER:8765   # asks for approval (or --invite msi_…); saves ~/.memspace/credentials.json
 memspace agent install claude          # hooks in ~/.claude/settings.json + MCP (stdio bridge)
 memspace agent install codex [--trust] # hooks in ~/.codex/hooks.json + rollout importer + MCP
 memspace agent doctor                  # end-to-end checks, incl. running the installed hook
@@ -241,8 +240,8 @@ HEAD per device), sessions with summary and full event timeline, search
 (filters, hybrid/keyword/semantic, highlighted matches), memories with their
 sources, and devices with sync state (what each device has not sent yet).
 
-Admin sessions (`memspace server login-link`) can create invites with
-per-platform setup commands, withdraw unused invites, revoke devices, list
+Admin sessions (`memspace server login-link`) can approve devices waiting
+to join, create invites with per-platform setup commands, withdraw unused invites, revoke devices, list
 and sign out browser sessions and make login links for other browsers.
 Sessions opened with a device token (`memspace ui`) are read-only, so a
 leaked device token cannot invite or revoke devices.
@@ -250,6 +249,8 @@ leaked device token cannot invite or revoke devices.
 The same from the command line, on the server machine:
 
 ```bash
+memspace server approve [code]       # no code: list devices waiting for approval
+memspace server deny <code>
 memspace server invite [--ttl 24h]
 memspace server device list
 memspace server device revoke <device-id>
@@ -268,8 +269,11 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o memspace-darwin-arm64 ./cmd/m
 ## Security and privacy
 
 - **Tokens:** device tokens are 32 random bytes, shown once and stored as
-  SHA-256 hashes. Registration needs a single-use invite. MCP uses a
-  separate read-only token per device (`msm_…`), revoked with the device.
+  SHA-256 hashes. A device joins only with an administrator's approval
+  (the code shown on the device must match the one in the UI; the token is
+  created when the device claims it, so it is never stored in plaintext)
+  or with a single-use invite. MCP uses a separate read-only token per
+  device (`msm_…`), revoked with the device.
   Agents start the stdio bridge (`memspace mcp stdio`), which reads it from
   `~/.memspace/credentials.json` (mode 0600), so no secret is written into
   agent configs or the shell environment.
@@ -345,6 +349,7 @@ also accept a web UI session. Writes need a device token.
 |---|---|
 | `GET /api/v1/health` | health check (no auth) |
 | `POST /api/v1/devices` | register a device with a one-time invite; returns the token once |
+| `POST /api/v1/device-requests`, `/device-requests/claim` | ask to join (no auth; open requests capped, 10 min); claim the token once approved, with the request's secret |
 | `GET /api/v1/devices`, `POST /api/v1/devices/mcp-token` | devices; issue or rotate the MCP token |
 | `POST /api/v1/projects`, `GET /api/v1/projects`, `GET /api/v1/projects/{id}` | ensure (by Git identity, then name), list, details with per-device locations |
 | `POST /api/v1/sessions`, `GET /api/v1/sessions[?before=&before_id=]`, `/sessions/{id}`, `/sessions/{id}/events` | ensure, list (paged), summary, timeline |
@@ -354,7 +359,7 @@ also accept a web UI session. Writes need a device token.
 | `GET /api/v1/overview`, `GET /api/v1/embedding/status` | dashboard data; semantic index state |
 | `GET /api/v1/sync/status`, `POST /api/v1/sync/report` | the server's view of a device; the client's spool report |
 | `POST /api/v1/ui/login-links`, `/ui/login`, `/ui/logout`, `GET /ui/session` | browser sign-in |
-| `/api/v1/admin/…` | invites, device revocation, login links, browser sessions, downloads (admin sessions only) |
+| `/api/v1/admin/…` | device requests (approve / deny), invites, device revocation, login links, browser sessions, downloads (admin sessions only) |
 | `GET /downloads/{name}` | client binaries from `server.downloads_dir` (no auth) |
 | `/mcp` | MCP, streamable HTTP, read-only tools (agents use it through `memspace mcp stdio`) |
 

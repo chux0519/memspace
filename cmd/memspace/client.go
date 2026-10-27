@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -33,58 +32,43 @@ func clientCmd() *cobra.Command {
 func clientConnectCmd() *cobra.Command {
 	var name, invite string
 	var force bool
+	var wait time.Duration
 	cmd := &cobra.Command{
-		Use:   "connect <server-url> --invite <code>",
+		Use:   "connect <server-url> [--invite <code>]",
 		Short: "Register this device with a MemSpace server",
-		Long: `Register this device. The invite code comes from the server operator:
+		Long: `Register this device with the server.
 
-    memspace server invite        # run on the server machine`,
+Without an invite, the device asks to join and shows a code; the server's
+administrator approves it in the web UI (Administration → Pending devices)
+or on the server with 'memspace server approve <code>'. The command waits
+for the decision (--wait); run it again to resume a pending request.
+
+With an invite (from 'memspace server invite' or the web UI), it connects
+at once.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
-			path := cfg.Client.CredentialsPath()
-			if existing, err := syncer.LoadCredentials(path); err == nil && !force {
+			if existing, err := syncer.LoadCredentials(cfg.Client.CredentialsPath()); err == nil && !force {
 				return fmt.Errorf("already connected to %s as %q (device %s); use --force to register again",
 					existing.ServerURL, existing.DeviceName, existing.DeviceID)
 			}
 			if invite == "" {
 				invite = os.Getenv("MEMSPACE_INVITE")
 			}
-			if invite == "" {
-				return fmt.Errorf("--invite is required (on the server: memspace server invite)")
-			}
-			if name == "" {
-				name, _ = os.Hostname()
-			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
-			defer cancel()
-			c := client.New(args[0], "")
-			if _, err := c.Health(ctx); err != nil {
-				return fmt.Errorf("server not reachable: %w", err)
-			}
-			deviceID, token, err := c.Register(ctx, name, runtime.GOOS, invite)
-			if err != nil {
+			if _, err := connectDevice(cmd.Context(), cfg, args[0], name, invite, wait, os.Stdout); err != nil {
 				return err
 			}
-			creds := &syncer.Credentials{
-				ServerURL: c.ServerURL, DeviceID: deviceID, DeviceName: name,
-				Token: token, ConnectedAt: time.Now().UTC(),
-			}
-			if err := syncer.SaveCredentials(path, creds); err != nil {
-				return fmt.Errorf("save credentials: %w", err)
-			}
-			fmt.Printf("Connected to %s as %q (device %s)\n", c.ServerURL, name, deviceID)
-			fmt.Printf("Credentials saved to %s\n", path)
 			fmt.Printf("\nNext: memspace agent install claude   (and/or codex)\n")
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "device name (default hostname)")
-	cmd.Flags().StringVar(&invite, "invite", "", "one-time invite code (or $MEMSPACE_INVITE)")
+	cmd.Flags().StringVar(&invite, "invite", "", "one-time invite code (or $MEMSPACE_INVITE); without one, ask for approval")
 	cmd.Flags().BoolVar(&force, "force", false, "register a new device even if already connected")
+	cmd.Flags().DurationVar(&wait, "wait", 10*time.Minute, "how long to wait for approval (0: check once and exit)")
 	return cmd
 }
 

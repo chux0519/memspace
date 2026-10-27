@@ -1,5 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
-import { api, type ClientDownload, type CreatedInvite, type Device, type Invite, type LoginLink, type UISessionInfo } from '../api'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { api, type ClientDownload, type CreatedInvite, type Device, type DeviceRequest, type Invite, type LoginLink, type UISessionInfo } from '../api'
 import { Async, Badge, Card, Empty, ErrorBox, Time, useAsync } from '../components'
 import { Icon } from '../icons'
 import { absTime } from '../util'
@@ -246,6 +246,105 @@ function Invites({ invites, reload }: { invites: Invite[]; reload: () => void })
   )
 }
 
+// Devices that ran `memspace onboard <server>` without an invite. Polled,
+// so a request shows up while the user is looking at this page.
+function PendingDevices({ onChange }: { onChange: () => void }) {
+  const reqs = useAsync(api.admin.deviceRequests, [])
+  const { reload } = reqs
+  useEffect(() => {
+    const t = setInterval(reload, 3000)
+    return () => clearInterval(t)
+  }, [reload])
+  // A claimed request disappears and its device appears: refresh devices.
+  const count = reqs.data?.length
+  const prev = useRef(count)
+  useEffect(() => {
+    if (prev.current !== undefined && count !== undefined && count < prev.current) onChange()
+    prev.current = count
+  }, [count, onChange])
+  const list = reqs.data ?? []
+  return (
+    <Card title="待审批设备" className={list.some((r) => r.status === 'pending') ? 'card-attention' : ''}
+      actions={<span className="muted small">核对码与设备上显示的一致再批准</span>}>
+      {reqs.error && <ErrorBox error={reqs.error} />}
+      {list.length === 0 ? (
+        <>
+          <Empty>没有等待批准的设备。</Empty>
+          <div className="setup">
+            <CopyBlock label="添加设备：把这句话发给新设备上的 Claude Code 或 Codex" text={`帮我在这台机器上安装 MemSpace：按 ${agentSetupURL} 的步骤操作。服务器 ${window.location.origin}。`} />
+            <p className="hint">Agent 会安装 client 并显示一个核对码，它会出现在这里等你批准。也可以在新设备上自己运行 <code>memspace onboard {window.location.origin}</code>。</p>
+          </div>
+        </>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>核对码</th>
+                <th>设备</th>
+                <th>来源</th>
+                <th>申请时间</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <PendingRow key={r.request_id} r={r} reload={reload} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {list.some((r) => r.status === 'pending') && (
+        <p className="hint">批准后设备会自动完成连接（Agent 安装时，告诉它已批准即可）。</p>
+      )}
+    </Card>
+  )
+}
+
+function PendingRow({ r, reload }: { r: DeviceRequest; reload: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const approve = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await api.admin.approveDevice(r.request_id)
+      reload()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <tr>
+      <td><code className="invite-code">{r.user_code}</code></td>
+      <td>
+        <div className="strong">{r.name}</div>
+        <div className="muted small">{r.platform}{r.client_version ? ' · ' + r.client_version : ''}</div>
+      </td>
+      <td className="mono">{r.remote_addr}</td>
+      <td><Time iso={r.created_at} /></td>
+      <td className="actions">
+        {r.status === 'approved' ? (
+          <Badge tone="live">已批准，等待设备连接</Badge>
+        ) : (
+          <>
+            {error && <span className="small bad-text">{error}</span>}
+            <button className="btn" disabled={busy} onClick={approve}>
+              <Icon name="check" size={15} />
+              批准
+            </button>
+            <Confirm label="拒绝" confirm="拒绝后这台设备需要重新申请。"
+              onConfirm={async () => { await api.admin.denyDevice(r.request_id); reload() }} />
+          </>
+        )}
+      </td>
+    </tr>
+  )
+}
+
 function Devices({ devices, reload }: { devices: Device[]; reload: () => void }) {
   if (devices.length === 0) return <Empty>还没有设备。</Empty>
   return (
@@ -374,9 +473,10 @@ export function Admin() {
       <header className="page-head">
         <div>
           <h1>管理</h1>
-          <div className="muted">邀请设备、撤销访问、管理浏览器登录。</div>
+          <div className="muted">批准新设备、撤销访问、管理浏览器登录。</div>
         </div>
       </header>
+      <PendingDevices onChange={devices.reload} />
       <AddDevice downloads={downloads.data ?? []} onCreated={invites.reload} />
       <Section title="邀请码">
         <Async state={invites}>{(list) => <Invites invites={list} reload={invites.reload} />}</Async>

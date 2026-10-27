@@ -310,3 +310,7 @@ pre.cmd { font-size: 15px; padding: 12px 16px; color: var(--accent); }
 .confirm { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); white-space: normal; }
 .confirm .btn-ghost { height: 30px; }
 .offscreen { position: fixed; left: -9999px; top: 0; opacity: 0; }
+
+/* Devices waiting for approval */
+.card.card-attention { border-color: rgba(45, 212, 191, 0.55); box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.15); }
+.nav-count { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent-strong); color: #04201c; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }

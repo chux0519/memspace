@@ -12,7 +12,6 @@ import (
 
 	"github.com/chux0519/memspace/internal/auth"
 	"github.com/chux0519/memspace/internal/model"
-	"github.com/google/uuid"
 )
 
 const maxDeviceFieldLen = 128
@@ -42,12 +41,6 @@ func RegisterDevice(db *sql.DB, ownerUserID string) http.HandlerFunc {
 			return
 		}
 
-		plaintext, hash, err := auth.GenerateToken()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to generate token")
-			return
-		}
-
 		ctx := r.Context()
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
@@ -56,16 +49,8 @@ func RegisterDevice(db *sql.DB, ownerUserID string) http.HandlerFunc {
 		}
 		defer tx.Rollback()
 
-		if err := auth.EnsureOwner(ctx, tx, ownerUserID); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to ensure owner")
-			return
-		}
-		deviceID := uuid.New().String()
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO devices (device_id, user_id, name, platform, token_hash, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)`,
-			deviceID, ownerUserID, req.Name, req.Platform, hash, model.FormatTime(time.Now()),
-		); err != nil {
+		deviceID, plaintext, err := auth.CreateDevice(ctx, tx, ownerUserID, req.Name, req.Platform)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to register device")
 			return
 		}

@@ -210,6 +210,19 @@ export interface UISessionInfo {
 
 export interface ClientDownload { name: string; os: string; arch: string; size: number }
 
+// A device asking to join without an invite (memspace onboard <server>).
+export interface DeviceRequest {
+  request_id: string
+  user_code: string
+  name: string
+  platform: string
+  remote_addr: string
+  client_version: string
+  status: 'pending' | 'approved'
+  created_at: string
+  expires_at: string
+}
+
 export class APIError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -277,5 +290,8 @@ export const api = {
     sessions: () => request<UISessionInfo[]>('GET', '/api/v1/admin/ui-sessions'),
     revokeSession: (id: string) => request<void>('DELETE', '/api/v1/admin/ui-sessions/' + encodeURIComponent(id)),
     downloads: () => request<ClientDownload[]>('GET', '/api/v1/admin/downloads'),
+    deviceRequests: () => request<{ requests: DeviceRequest[] }>('GET', '/api/v1/admin/device-requests').then((r) => r.requests),
+    approveDevice: (id: string) => request<void>('POST', '/api/v1/admin/device-requests/' + encodeURIComponent(id) + '/approve'),
+    denyDevice: (id: string) => request<void>('POST', '/api/v1/admin/device-requests/' + encodeURIComponent(id) + '/deny'),
   },
 }

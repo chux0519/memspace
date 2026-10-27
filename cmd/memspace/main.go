@@ -109,7 +109,7 @@ func serverCmd() *cobra.Command {
 		Use:   "server",
 		Short: "Manage the MemSpace server",
 	}
-	cmd.AddCommand(serverStartCmd(), serverInviteCmd(), serverDeviceCmd(), serverLoginLinkCmd())
+	cmd.AddCommand(serverStartCmd(), serverInviteCmd(), serverApproveCmd(true), serverApproveCmd(false), serverDeviceCmd(), serverLoginLinkCmd())
 	return cmd
 }
 

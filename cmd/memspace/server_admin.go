@@ -109,3 +109,64 @@ func serverDeviceCmd() *cobra.Command {
 	})
 	return cmd
 }
+
+// serverApproveCmd decides device requests (devices joining without an
+// invite) on the server machine.
+func serverApproveCmd(approve bool) *cobra.Command {
+	use, short, nargs := "approve [code]", "Approve a device waiting to join (no code: list pending devices)", cobra.MaximumNArgs(1)
+	if !approve {
+		use, short, nargs = "deny <code>", "Deny a device waiting to join", cobra.ExactArgs(1)
+	}
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  nargs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			database, err := db.Open(cfg.Database.Path)
+			if err != nil {
+				return err
+			}
+			defer database.Close()
+			if len(args) == 0 {
+				reqs, err := auth.ListDeviceRequests(cmd.Context(), database)
+				if err != nil {
+					return err
+				}
+				pending := 0
+				tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+				fmt.Fprintln(tw, "CODE\tNAME\tPLATFORM\tFROM\tREQUESTED")
+				for _, r := range reqs {
+					if r.Status != auth.RequestPending {
+						continue
+					}
+					pending++
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.UserCode, r.Name, r.Platform, r.RemoteAddr, r.CreatedAt.Local().Format("15:04"))
+				}
+				if pending == 0 {
+					fmt.Println("No devices are waiting for approval.")
+					return nil
+				}
+				tw.Flush()
+				fmt.Println("\nCompare the code with the one shown on the device, then: memspace server approve <code>")
+				return nil
+			}
+			r, err := auth.DecideDeviceRequest(cmd.Context(), database, args[0], approve)
+			if errors.Is(err, auth.ErrUnknownRequest) {
+				return fmt.Errorf("no device is waiting with code %s (it may have expired; list them with 'memspace server approve')", auth.NormalizeUserCode(args[0]))
+			}
+			if err != nil {
+				return err
+			}
+			if approve {
+				fmt.Printf("Approved %q (%s, from %s). The device finishes connecting on its own.\n", r.Name, r.Platform, r.RemoteAddr)
+			} else {
+				fmt.Printf("Denied %q (%s, from %s).\n", r.Name, r.Platform, r.RemoteAddr)
+			}
+			return nil
+		},
+	}
+}
