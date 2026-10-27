@@ -1,0 +1,9 @@
+bin/
+/data/
+*.db
+*.db-wal
+*.db-shm
+config.toml
+
+# Local agent tooling (third-party skills), not part of the product.
+/.claude/

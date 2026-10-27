@@ -1,0 +1,19 @@
+MemSpace
+Copyright 2026 Yongsheng Xu
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes third-party software, compiled into the server
+binary. Their licenses are kept next to the sources:
+
+- simple (SQLite FTS5 tokenizer), Copyright (c) 2020, 2025 Wang Fenjin,
+  MIT license (dual MIT/GPL-3.0, MIT chosen):
+  internal/fts/simple/LICENSE-simple
+- cppjieba and limonp, including the jieba dictionaries, MIT license:
+  internal/fts/simple/LICENSE-cppjieba
+- sqlite-vec, Copyright 2024 Alex Garcia, MIT or Apache-2.0:
+  internal/vec/LICENSE-MIT, internal/vec/LICENSE-APACHE
+- SQLite headers (via mattn/go-sqlite3), public domain.
+
+The web UI bundle (web/dist) includes React and other npm packages under
+their own licenses (MIT); see web/package-lock.json.

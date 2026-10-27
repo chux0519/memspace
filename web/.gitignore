@@ -1,0 +1,3 @@
+node_modules/
+# Committed so that `go build` embeds the UI without Node (see `make ui`).
+!dist/
