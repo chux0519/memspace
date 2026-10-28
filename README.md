@@ -206,9 +206,14 @@ OpenAI-compatible `/v1/embeddings` endpoint works; we use
 with bge-m3:
 
 ```bash
-# q4_k MLP/vocabulary + q8_0 attention, 384 MB:
-# https://huggingface.co/chux0519/bge-m3-gguf-embeddings-cpp
-embeddings_server --model bge-m3.q4_k_mlp_emb_q8_attn.gguf --max-tokens 512 --port 8090
+# The server binary (linux-amd64, linux-arm64, darwin-arm64 or windows-amd64.exe;
+# see the embeddings.cpp README for CPU requirements and checksums):
+curl -fLo embeddings_server \
+  https://github.com/chux0519/embeddings.cpp/releases/latest/download/embeddings_server-linux-amd64
+chmod +x embeddings_server
+# The model, q4_k MLP/vocabulary + q8_0 attention, 384 MB:
+curl -fLO https://huggingface.co/chux0519/bge-m3-gguf-embeddings-cpp/resolve/main/bge-m3.q4_k_mlp_emb_q8_attn.gguf
+./embeddings_server --model bge-m3.q4_k_mlp_emb_q8_attn.gguf --max-tokens 512 --port 8090
 ```
 
 ```toml
