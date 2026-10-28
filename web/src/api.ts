@@ -18,6 +18,14 @@ export interface DeviceStatus extends Device {
   spool_oldest_pending_at?: string
   spool_reported_at?: string
   client_version?: string
+  upgrade_target?: string
+  upgrade_error?: string
+}
+
+export interface Health {
+  status: string
+  version: string
+  latest_version?: string
 }
 
 export interface Project {
@@ -264,7 +272,7 @@ const q = (params: Record<string, string | number | undefined>) => {
 
 export const api = {
   session: () => request<{ role: 'admin' | 'viewer' }>('GET', '/api/v1/ui/session'),
-  health: () => request<{ status: string; version: string }>('GET', '/api/v1/health'),
+  health: () => request<Health>('GET', '/api/v1/health'),
   login: (code: string) => request<void>('POST', '/api/v1/ui/login', { code }),
   logout: () => request<void>('POST', '/api/v1/ui/logout'),
   overview: () => request<Overview>('GET', '/api/v1/overview'),

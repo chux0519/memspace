@@ -1,10 +1,11 @@
 import { api, type DeviceStatus, type EmbeddingStatus } from '../api'
 import { Async, Badge, Card, Empty, Time, useAsync } from '../components'
 import { href } from '../router'
-import { num, relTime } from '../util'
+import { newerRelease, num, relTime } from '../util'
 
 export function Devices() {
   const state = useAsync(api.overview, [])
+  const health = useAsync(api.health, [])
   return (
     <div className="page">
       <header className="page-head">
@@ -17,9 +18,10 @@ export function Devices() {
         {(o) => (
           <>
             <Card title="设备">
-              <DeviceTable devices={o.devices} />
+              <DeviceTable devices={o.devices} serverVersion={health.data?.version} />
               <p className="hint">
                 “待上传”来自设备每次同步后的报告：仍在本地 spool 中、尚未被服务器确认的事件。设备离线时，这个数字停留在最后一次报告的值。
+                客户端比服务器旧时，会在下次同步后从 GitHub 自动升级到服务器的版本；失败时这里会显示原因，可在该设备上运行 <code>memspace upgrade</code>。
               </p>
             </Card>
             <Card title="语义索引与后台任务">
@@ -40,7 +42,7 @@ function syncState(d: DeviceStatus): { tone: string; label: string } {
   return { tone: 'ok', label: '已同步' }
 }
 
-export function DeviceTable({ devices, compact }: { devices: DeviceStatus[]; compact?: boolean }) {
+export function DeviceTable({ devices, compact, serverVersion }: { devices: DeviceStatus[]; compact?: boolean; serverVersion?: string }) {
   if (devices.length === 0) return <Empty>还没有设备。在服务器上运行 <code>memspace server invite</code>，再在设备上 <code>memspace client connect</code>。</Empty>
   return (
     <div className="table-wrap">
@@ -89,13 +91,38 @@ export function DeviceTable({ devices, compact }: { devices: DeviceStatus[]; com
                     <Time iso={d.spool_reported_at} />
                   </td>
                 )}
-                {!compact && <td className="mono small">{d.client_version || '—'}</td>}
+                {!compact && (
+                  <td>
+                    <ClientVersion d={d} serverVersion={serverVersion} />
+                  </td>
+                )}
               </tr>
             )
           })}
         </tbody>
       </table>
     </div>
+  )
+}
+
+// The client version, marked when it is behind the server or its automatic
+// upgrade failed.
+function ClientVersion({ d, serverVersion }: { d: DeviceStatus; serverVersion?: string }) {
+  const behind = !d.revoked_at && newerRelease(d.client_version, serverVersion)
+  return (
+    <>
+      <span className="mono small">{d.client_version || '—'}</span>
+      {behind && !d.upgrade_error && (
+        <div>
+          <Badge tone="warn">待升级 → {serverVersion}</Badge>
+        </div>
+      )}
+      {behind && d.upgrade_error && (
+        <div className="bad-text small" title={d.upgrade_error}>
+          自动升级到 {d.upgrade_target || serverVersion} 失败：{d.upgrade_error}
+        </div>
+      )}
+    </>
   )
 }
 

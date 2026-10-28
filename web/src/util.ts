@@ -153,3 +153,25 @@ export function eventTone(type: string): string {
 export function sessionCursor(last: { last_event_at?: string; started_at: string; session_id: string }) {
   return { before: last.last_event_at ?? last.started_at, before_id: last.session_id }
 }
+
+// A tagged release (v1.2.3, v1.2.3-rc.1), not a development build or a Go
+// pseudo-version.
+export const isRelease = (v?: string): v is string =>
+  !!v && /^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(v) && !/\d{14}-[0-9a-f]{12}$/.test(v)
+
+// Whether release b is newer than release a (false unless both are releases).
+export function newerRelease(a?: string, b?: string): boolean {
+  if (!isRelease(a) || !isRelease(b)) return false
+  const parse = (v: string) => {
+    const dash = v.indexOf('-')
+    const core = dash < 0 ? v.slice(1) : v.slice(1, dash)
+    return { nums: core.split('.').map(Number), pre: dash < 0 ? '' : v.slice(dash + 1) }
+  }
+  const x = parse(a)
+  const y = parse(b)
+  for (let i = 0; i < 3; i++) if (x.nums[i] !== y.nums[i]) return y.nums[i] > x.nums[i]
+  if (x.pre === y.pre) return false
+  if (!y.pre) return true // a release is newer than its pre-releases
+  if (!x.pre) return false
+  return y.pre.localeCompare(x.pre, undefined, { numeric: true }) > 0
+}

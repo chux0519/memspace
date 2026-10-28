@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, APIError } from './api'
-import { Loading } from './components'
+import { Loading, useAsync } from './components'
 import { Icon, Logo } from './icons'
 import { href, navigate, useRoute, type Route } from './router'
+import { newerRelease } from './util'
 import { Admin } from './pages/Admin'
 import { Devices } from './pages/Devices'
 import { Memories, MemoryPage } from './pages/Memories'
@@ -169,8 +170,27 @@ function Shell({ route, admin, onLogout, children }: { route: Route; admin: bool
             </>
           )}
         </nav>
-        <main>{children}</main>
+        <main>
+          <UpdateBanner />
+          {children}
+        </main>
       </div>
+    </div>
+  )
+}
+
+// Shown when GitHub has a newer release than this server (the server checks
+// daily unless server.update_check = "off").
+function UpdateBanner() {
+  const { data } = useAsync(api.health, [])
+  if (!data || !newerRelease(data.version, data.latest_version)) return null
+  return (
+    <div className="update-banner">
+      MemSpace {data.latest_version} 已发布（本服务器 {data.version}）。在服务器上重新运行{' '}
+      <code>install.sh --server</code> 升级服务端，各设备的客户端会随后自动升级。{' '}
+      <a href={`https://github.com/chux0519/memspace/releases/tag/${data.latest_version}`} target="_blank" rel="noreferrer">
+        更新说明
+      </a>
     </div>
   )
 }

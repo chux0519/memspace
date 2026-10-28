@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
@@ -32,6 +33,8 @@ type DeviceStatus struct {
 	OldestPending *time.Time `json:"spool_oldest_pending_at,omitempty"`
 	ReportedAt    *time.Time `json:"spool_reported_at,omitempty"`
 	ClientVersion string     `json:"client_version,omitempty"`
+	UpgradeTarget string     `json:"upgrade_target,omitempty"`
+	UpgradeError  string     `json:"upgrade_error,omitempty"`
 }
 
 // UnfinishedSession is recent work that did not end cleanly.
@@ -67,7 +70,7 @@ func DeviceStatuses(ctx context.Context, db *sql.DB, owner string) ([]DeviceStat
 			(SELECT COUNT(*) FROM events e WHERE e.device_id = d.device_id),
 			(SELECT COUNT(*) FROM events e WHERE e.device_id = d.device_id AND e.received_at >= ?),
 			d.spool_pending, d.spool_dead, d.spool_dropped, d.spool_oldest_pending_at, d.spool_reported_at,
-			COALESCE(d.client_version, '')
+			COALESCE(d.client_version, ''), COALESCE(d.upgrade_target, ''), COALESCE(d.upgrade_error, '')
 		FROM devices d WHERE d.user_id = ? ORDER BY COALESCE(d.last_seen_at, d.created_at) DESC`, since, owner)
 	if err != nil {
 		return nil, err
@@ -80,7 +83,8 @@ func DeviceStatuses(ctx context.Context, db *sql.DB, owner string) ([]DeviceStat
 		var lastSeen, revoked, oldest, reported sql.NullString
 		var pending, dead, dropped sql.NullInt64
 		if err := rows.Scan(&d.DeviceID, &d.UserID, &d.Name, &d.Platform, &created, &lastSeen, &revoked,
-			&d.EventsTotal, &d.Events24h, &pending, &dead, &dropped, &oldest, &reported, &d.ClientVersion); err != nil {
+			&d.EventsTotal, &d.Events24h, &pending, &dead, &dropped, &oldest, &reported, &d.ClientVersion,
+			&d.UpgradeTarget, &d.UpgradeError); err != nil {
 			return nil, err
 		}
 		d.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
@@ -412,17 +416,18 @@ func SyncReportHandler(db *sql.DB) http.HandlerFunc {
 		if rep.OldestPending != nil {
 			oldest = model.FormatTime(*rep.OldestPending)
 		}
-		if len(rep.ClientVersion) > 64 {
-			rep.ClientVersion = rep.ClientVersion[:64]
-		}
+		rep.ClientVersion = clip(rep.ClientVersion, 64)
+		rep.UpgradeTarget = clip(rep.UpgradeTarget, 64)
+		rep.UpgradeError = clip(rep.UpgradeError, 500)
 		if _, err := db.ExecContext(r.Context(), `
 			UPDATE devices SET spool_pending = ?, spool_dead = ?, spool_dropped = ?, spool_oldest_pending_at = ?,
-				spool_reported_at = ?, client_version = ? WHERE device_id = ?`,
-			rep.Pending, rep.Dead, rep.Dropped, oldest, nowString(), rep.ClientVersion, deviceID); err != nil {
+				spool_reported_at = ?, client_version = ?, upgrade_target = ?, upgrade_error = ? WHERE device_id = ?`,
+			rep.Pending, rep.Dead, rep.Dropped, oldest, nowString(), rep.ClientVersion,
+			rep.UpgradeTarget, rep.UpgradeError, deviceID); err != nil {
 			writeError(w, http.StatusInternalServerError, "update failed")
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeJSON(w, http.StatusOK, model.SyncReportResponse{ServerVersion: model.BuildVersion()})
 	}
 }
 
@@ -493,4 +498,15 @@ func UILogout(db *sql.DB) http.HandlerFunc {
 		auth.SetUICookie(w, r, "")
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// clip shortens s to at most n bytes on a rune boundary.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }

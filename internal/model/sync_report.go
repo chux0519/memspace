@@ -14,6 +14,16 @@ type SyncReport struct {
 	Dropped       int64      `json:"dropped"`
 	OldestPending *time.Time `json:"oldest_pending_at,omitempty"`
 	ClientVersion string     `json:"client_version,omitempty"`
+	// UpgradeTarget and UpgradeError describe a failed automatic upgrade
+	// to the server's version (empty when there is none).
+	UpgradeTarget string `json:"upgrade_target,omitempty"`
+	UpgradeError  string `json:"upgrade_error,omitempty"`
+}
+
+// SyncReportResponse answers a sync report. Servers before v0.1.3 answer
+// 204 without a body.
+type SyncReportResponse struct {
+	ServerVersion string `json:"server_version"`
 }
 
 // ReleaseRepo is the GitHub repository that publishes release binaries.

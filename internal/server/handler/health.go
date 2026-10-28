@@ -16,10 +16,14 @@ type healthResponse struct {
 	DBOk   bool   `json:"db_ok"`
 	// Version of the server binary; clients compare it with their own.
 	Version string `json:"version"`
+	// LatestVersion is the latest release on GitHub, when the server
+	// checks (server.update_check).
+	LatestVersion string `json:"latest_version,omitempty"`
 }
 
-// Health handles GET /api/v1/health — no auth required.
-func Health(db *sql.DB) http.HandlerFunc {
+// Health handles GET /api/v1/health — no auth required. latest returns the
+// latest release seen ("" when unknown).
+func Health(db *sql.DB, latest func() string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		dbOk := db.PingContext(r.Context()) == nil
 		resp := healthResponse{
@@ -27,6 +31,9 @@ func Health(db *sql.DB) http.HandlerFunc {
 			Time:    time.Now().UTC().Format(time.RFC3339),
 			DBOk:    dbOk,
 			Version: model.BuildVersion(),
+		}
+		if latest != nil {
+			resp.LatestVersion = latest()
 		}
 		if !dbOk {
 			resp.Status = "degraded"

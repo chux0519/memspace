@@ -139,8 +139,10 @@ func TestUIReadAPIs(t *testing.T) {
 
 	// Spool report shows up in the overview.
 	oldest := time.Now().Add(-2 * time.Hour).UTC()
-	if code := postJSON(t, srv, tok, "/api/v1/sync/report", model.SyncReport{Pending: 7, Dead: 1, OldestPending: &oldest, ClientVersion: "test"}, nil); code != http.StatusNoContent {
-		t.Fatalf("sync report %d", code)
+	var repResp model.SyncReportResponse
+	if code := postJSON(t, srv, tok, "/api/v1/sync/report", model.SyncReport{Pending: 7, Dead: 1, OldestPending: &oldest, ClientVersion: "test",
+		UpgradeTarget: "v9.0.0", UpgradeError: "download: HTTP 404"}, &repResp); code != http.StatusOK || repResp.ServerVersion != model.BuildVersion() {
+		t.Fatalf("sync report %d %+v", code, repResp)
 	}
 	var ov handler.Overview
 	if code := getJSON(t, srv, tok, "/api/v1/overview", &ov); code != http.StatusOK {
@@ -149,7 +151,8 @@ func TestUIReadAPIs(t *testing.T) {
 	if ov.Counts.Projects != 1 || ov.Counts.EventsAll != 6 || ov.Counts.Sessions7d != 2 || ov.Counts.Memories != 2 || len(ov.RecentSessions) != 2 || len(ov.LatestMemories) != 2 {
 		t.Errorf("overview counts = %+v", ov.Counts)
 	}
-	if len(ov.Devices) != 1 || ov.Devices[0].SpoolPending == nil || *ov.Devices[0].SpoolPending != 7 || ov.Devices[0].ClientVersion != "test" || ov.Devices[0].EventsTotal != 6 {
+	if len(ov.Devices) != 1 || ov.Devices[0].SpoolPending == nil || *ov.Devices[0].SpoolPending != 7 || ov.Devices[0].ClientVersion != "test" || ov.Devices[0].EventsTotal != 6 ||
+		ov.Devices[0].UpgradeTarget != "v9.0.0" || ov.Devices[0].UpgradeError != "download: HTTP 404" {
 		t.Errorf("overview devices = %+v", ov.Devices)
 	}
 	if ov.Embedding.Enabled {

@@ -90,7 +90,9 @@ func newSyncer(cfg *config.Config) (*syncer.Syncer, error) {
 	if d := (&dsh.Adapter{StateDir: cfg.Client.StateDir()}); d.Enabled() {
 		importers = append(importers, d.NewImporter())
 	}
-	return syncer.New(cfg.Client, sp, creds, importers...), nil
+	s := syncer.New(cfg.Client, sp, creds, importers...)
+	enableAutoUpgrade(cfg, s)
+	return s, nil
 }
 
 func clientSyncCmd() *cobra.Command {

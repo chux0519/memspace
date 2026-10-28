@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,6 +24,7 @@ import (
 	"github.com/chux0519/memspace/internal/embedding"
 	"github.com/chux0519/memspace/internal/jobs"
 	"github.com/chux0519/memspace/internal/model"
+	"github.com/chux0519/memspace/internal/releasecheck"
 	"github.com/chux0519/memspace/internal/search"
 	"github.com/chux0519/memspace/internal/server"
 	"github.com/chux0519/memspace/internal/spool"
@@ -56,6 +58,7 @@ func main() {
 	root.AddCommand(onboardCmd())
 	root.AddCommand(hookCmd())
 	root.AddCommand(uiCmd())
+	root.AddCommand(upgradeCmd())
 
 	if err := root.Execute(); err != nil {
 		if errors.Is(err, errNotApproved) {
@@ -178,9 +181,17 @@ func serverStartCmd() *cobra.Command {
 			}()
 			defer func() { stopJobs(); <-jobsDone }()
 
+			// Release check (optional): tells the web UI about newer servers.
+			var releases *releasecheck.Checker
+			if cfg.Server.UpdateCheck != "off" {
+				releases = releasecheck.New(log.Printf)
+				go releases.Run(context.WithoutCancel(cmd.Context()))
+			}
+
+			opts := server.Options{Embedding: emb, DownloadsDir: cfg.Server.DownloadsDir, LatestRelease: releases.Latest}
 			srv := &http.Server{
 				Addr:              cfg.Server.Address,
-				Handler:           server.NewWithOptions(database, cfg.Auth.OwnerUserID, server.Options{Embedding: emb, DownloadsDir: cfg.Server.DownloadsDir}),
+				Handler:           server.NewWithOptions(database, cfg.Auth.OwnerUserID, opts),
 				ReadHeaderTimeout: 10 * time.Second,
 				ReadTimeout:       30 * time.Second,
 				WriteTimeout:      30 * time.Second,

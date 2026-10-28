@@ -22,6 +22,8 @@ type Options struct {
 	Embedding *embedding.Service
 	// DownloadsDir serves client binaries at /downloads/ ("" = none).
 	DownloadsDir string
+	// LatestRelease returns the latest release on GitHub ("" when unknown).
+	LatestRelease func() string
 }
 
 // New returns an http.Handler with all routes registered.
@@ -40,7 +42,7 @@ func NewWithOptions(db *sql.DB, ownerUserID string, opts Options) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeaders)
 
-	r.Get("/api/v1/health", handler.Health(db))
+	r.Get("/api/v1/health", handler.Health(db, opts.LatestRelease))
 
 	// Device registration — no token, but a one-time invite is required.
 	r.Post("/api/v1/devices", handler.RegisterDevice(db, ownerUserID))

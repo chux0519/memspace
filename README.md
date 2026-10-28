@@ -302,6 +302,22 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o memspace-darwin-arm64 ./cmd/m
 # likewise linux/amd64, linux/arm64, darwin/amd64, windows/amd64 (.exe)
 ```
 
+**Upgrades.** Upgrade the server first (re-run `install.sh --server`); the
+clients follow it:
+
+- After a sync, a client older than the server downloads the release of the
+  server's version from GitHub (through `HTTPS_PROXY` when set), checks it
+  against the release's `SHA256SUMS`, runs it, and replaces itself (the old
+  binary stays as `memspace.prev`). Running agents keep the old binary
+  until they restart. Clients never upgrade past the server, and
+  development builds are never replaced. `[client] auto_upgrade = "off"`
+  turns this off; `memspace upgrade` does it by hand.
+- A failed upgrade is retried every 6 hours and shown in `memspace agent
+  doctor`, on the web UI's devices page, and once a day in the
+  session-start context, which asks the agent to tell you.
+- The server asks GitHub once a day for the latest release and the web UI
+  shows when a newer one exists (`server.update_check = "off"` to stop).
+
 ## Security and privacy
 
 - **Tokens:** device tokens are 32 random bytes, shown once and stored as
@@ -349,13 +365,15 @@ One file serves both roles: `$MEMSPACE_CONFIG`, else `~/.memspace/config.toml`
 (`--config` to override). Environment variables override the file:
 `MEMSPACE_ADDRESS`, `MEMSPACE_DB_PATH`, `MEMSPACE_OWNER_USER_ID`,
 `MEMSPACE_HOME`, `MEMSPACE_SERVER_URL`, `MEMSPACE_EMBEDDING_URL`,
-`MEMSPACE_EMBEDDING_MODEL`, `MEMSPACE_INJECT`.
+`MEMSPACE_EMBEDDING_MODEL`, `MEMSPACE_INJECT`, `MEMSPACE_AUTO_UPGRADE`,
+`MEMSPACE_UPDATE_CHECK`.
 
 ```toml
 [server]
 address = "127.0.0.1:8765"
 public_url = ""            # default http://<address>
 downloads_dir = ""
+update_check = "on"        # "off": don't ask GitHub daily for the latest release
 
 [database]
 path = "./data/memspace.db"
@@ -367,6 +385,7 @@ owner_user_id = "owner"
 home = "~/.memspace"       # or $MEMSPACE_HOME / --home
 server_url = ""            # overrides the URL saved by `client connect`
 inject = "on"              # "off" disables context injection
+auto_upgrade = "on"        # "off": no automatic upgrades to the server's version
 spool_max_events = 50000
 spool_max_bytes = 268435456
 batch_size = 200

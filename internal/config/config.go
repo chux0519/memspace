@@ -55,6 +55,9 @@ type ServerConfig struct {
 	// DownloadsDir holds client binaries (memspace-<os>-<arch>[.exe]) served
 	// at /downloads/ for setting up new devices. Empty: no downloads.
 	DownloadsDir string `toml:"downloads_dir"`
+	// UpdateCheck asks GitHub once a day for the latest release, so the web
+	// UI can show that a newer server is available: "on" (default) or "off".
+	UpdateCheck string `toml:"update_check"`
 }
 
 type DatabaseConfig struct {
@@ -90,6 +93,10 @@ type ClientConfig struct {
 	// Inject controls context injection into agent sessions: "on"
 	// (default) or "off".
 	Inject string `toml:"inject"`
+	// AutoUpgrade controls whether the client replaces itself with the
+	// server's version when the server is newer: "on" (default) or "off"
+	// (doctor and the web UI still show that it is behind).
+	AutoUpgrade string `toml:"auto_upgrade"`
 }
 
 // Duration is a time.Duration that decodes from a TOML string like "30s".
@@ -175,6 +182,8 @@ func ResolvePath(explicit string) string {
 //	MEMSPACE_SERVER_URL     → client.server_url
 //	MEMSPACE_BACKOFF_BASE   → client.backoff_base
 //	MEMSPACE_INJECT         → client.inject
+//	MEMSPACE_AUTO_UPGRADE   → client.auto_upgrade
+//	MEMSPACE_UPDATE_CHECK   → server.update_check
 //	MEMSPACE_EMBEDDING_URL  → embedding.url
 //	MEMSPACE_EMBEDDING_MODEL → embedding.model
 func Load(path string) (*Config, error) {
@@ -213,6 +222,12 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("MEMSPACE_INJECT"); v != "" {
 		cfg.Client.Inject = v
+	}
+	if v := os.Getenv("MEMSPACE_AUTO_UPGRADE"); v != "" {
+		cfg.Client.AutoUpgrade = v
+	}
+	if v := os.Getenv("MEMSPACE_UPDATE_CHECK"); v != "" {
+		cfg.Server.UpdateCheck = v
 	}
 	if v := os.Getenv("MEMSPACE_BACKOFF_BASE"); v != "" {
 		d, err := time.ParseDuration(v)

@@ -19,6 +19,7 @@ import (
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/db"
+	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/project"
 	"github.com/chux0519/memspace/internal/server"
 	"github.com/chux0519/memspace/internal/spool"
@@ -362,5 +363,33 @@ func TestBackoffGrowsAndCaps(t *testing.T) {
 	}
 	if d := backoff(20, base, max); d > max*12/10 {
 		t.Errorf("backoff not capped: %v", d)
+	}
+}
+
+// After a sync that reached the server, AfterSync gets the server's version
+// and a failed upgrade is reported with the spool state; a failed sync does
+// not run it.
+func TestAfterSyncAndUpgradeReport(t *testing.T) {
+	h := newHarness(t)
+	d := h.device("laptop")
+	var got []string
+	d.s.AfterSync = func(_ context.Context, v string) { got = append(got, v) }
+	d.s.UpgradeStatus = func() (string, string) { return "v9.0.0", "download: HTTP 404" }
+	d.emit(t, "s1", 3)
+	if _, err := d.s.Run(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != model.BuildVersion() {
+		t.Fatalf("AfterSync calls = %q", got)
+	}
+	if n := h.count(`SELECT COUNT(*) FROM devices WHERE upgrade_target = 'v9.0.0' AND upgrade_error = 'download: HTTP 404'`); n != 1 {
+		t.Errorf("upgrade failure not reported")
+	}
+
+	h.gate.mode.Store(gateDown)
+	d.emit(t, "s1", 1)
+	d.s.Run(context.Background(), true)
+	if len(got) != 1 {
+		t.Errorf("AfterSync ran after a failed sync: %q", got)
 	}
 }

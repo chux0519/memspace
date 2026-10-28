@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { api, type ClientDownload, type CreatedInvite, type Device, type DeviceRequest, type Invite, type LoginLink, type UISessionInfo } from '../api'
 import { Async, Badge, Card, Empty, ErrorBox, Time, useAsync } from '../components'
 import { Icon } from '../icons'
-import { absTime } from '../util'
+import { absTime, isRelease } from '../util'
 
 // copyText works on plain-HTTP LAN servers too, where navigator.clipboard
 // (secure contexts only) is unavailable.
@@ -115,7 +115,6 @@ function agentPrompt(invite: CreatedInvite) {
 // Release builds are installed from GitHub with the install scripts; the
 // version matches this server's when it is a release.
 const installScripts = 'https://raw.githubusercontent.com/chux0519/memspace/main'
-const isRelease = (v?: string) => !!v && /^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(v) && !/\d{14}-[0-9a-f]{12}$/.test(v)
 
 function setupCommands(p: (typeof platforms)[number], invite: CreatedInvite, downloads: ClientDownload[], version?: string) {
   const origin = window.location.origin

@@ -139,6 +139,10 @@ a.row:hover { background: var(--surface-2); color: inherit; }
 .loading { color: var(--text-3); padding: 20px; text-align: center; }
 .error-box { background: rgba(69, 10, 10, 0.4); border: 1px solid rgba(240, 82, 82, 0.5); color: var(--bad); padding: 10px 14px; border-radius: var(--radius); }
 .hint { color: var(--text-3); font-size: 13px; margin: 0; }
+.update-banner {
+  margin: 0 0 20px; max-width: 1400px; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  border: 1px solid var(--border-soft); background: var(--surface-2); color: var(--text-2);
+}
 .disclaimer { color: var(--text-3); font-size: 12px; margin: 16px 0 0; border-top: 1px dashed var(--border); padding-top: 10px; }
 .load-more {
   display: block; width: calc(100% - 40px); margin: 12px 20px 16px; height: 36px;

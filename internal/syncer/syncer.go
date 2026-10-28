@@ -35,6 +35,16 @@ type Syncer struct {
 	Client    *client.Client
 	Importers []Importer
 	Log       io.Writer
+	// AfterSync, when set, runs after a sync that reached the server, with
+	// the server's version ("" from servers that do not report it); the
+	// client upgrades itself there. It runs outside the sync lock.
+	AfterSync func(ctx context.Context, serverVersion string)
+	// UpgradeStatus, when set, returns a failed automatic upgrade (target
+	// version and error) to report to the server.
+	UpgradeStatus func() (target, err string)
+
+	serverVersion string
+	reported      bool
 }
 
 // New builds a Syncer from config and saved credentials.
@@ -69,6 +79,15 @@ type Result struct {
 // Run imports and uploads until the spool is empty or an attempt fails.
 // Failures are recorded in the persisted state and schedule the next attempt.
 func (s *Syncer) Run(ctx context.Context, force bool) (Result, error) {
+	s.reported = false
+	res, err := s.run(ctx, force)
+	if s.reported && s.AfterSync != nil {
+		s.AfterSync(ctx, s.serverVersion)
+	}
+	return res, err
+}
+
+func (s *Syncer) run(ctx context.Context, force bool) (Result, error) {
 	var total Result
 	for round := 0; ; round++ {
 		res, err := s.runLocked(ctx, force || round > 0)
@@ -181,15 +200,21 @@ func (s *Syncer) report(ctx context.Context) {
 		Pending: int64(st.Pending + st.Inflight), Dead: int64(st.Dead), Dropped: st.Dropped,
 		ClientVersion: model.BuildVersion(),
 	}
+	if s.UpgradeStatus != nil {
+		rep.UpgradeTarget, rep.UpgradeError = s.UpgradeStatus()
+	}
 	if !st.OldestPending.IsZero() {
 		t := st.OldestPending.UTC()
 		rep.OldestPending = &t
 	}
 	rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := s.Client.ReportSync(rctx, rep); err != nil {
+	v, err := s.Client.ReportSync(rctx, rep)
+	if err != nil {
 		fmt.Fprintf(s.Log, "report spool state: %v\n", err)
+		return
 	}
+	s.serverVersion, s.reported = v, true
 }
 
 func sessionKey(r *spool.Record) string { return r.Agent + "|" + r.NativeSessionID }

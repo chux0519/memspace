@@ -57,7 +57,10 @@ type Config struct {
 	// ProjectDir, when set, identifies the project instead of the hook's
 	// cwd: the directory the session was started in.
 	ProjectDir string
-	HTTP       *http.Client
+	// Notice, when set, returns a line for the user (e.g. a failed client
+	// upgrade) to put first in the session-start context; "" for none.
+	Notice func() string
+	HTTP   *http.Client
 }
 
 // Input is the subset of hook stdin MemSpace reads (same field names in
@@ -85,11 +88,11 @@ func Run(ctx context.Context, cfg Config, raw []byte) []byte {
 		if in.Source == "resume" {
 			return nil // the resumed transcript already carries its history
 		}
-		text = sessionStart(ctx, cfg, in)
+		text = withNotice(cfg, sessionStart(ctx, cfg, in))
 	case "UserPromptSubmit":
 		text = promptRecall(ctx, cfg, in)
 		if cfg.StartWithFirstPrompt && firstPrompt(cfg, in) {
-			if start := sessionStart(ctx, cfg, in); start != "" {
+			if start := withNotice(cfg, sessionStart(ctx, cfg, in)); start != "" {
 				text = strings.TrimSpace(start + "\n\n" + text)
 			}
 		}
@@ -101,6 +104,17 @@ func Run(ctx context.Context, cfg Config, raw []byte) []byte {
 		"hookSpecificOutput": map[string]any{"hookEventName": in.HookEventName, "additionalContext": text},
 	})
 	return out
+}
+
+func withNotice(cfg Config, text string) string {
+	if cfg.Notice == nil {
+		return text
+	}
+	n := cfg.Notice()
+	if n == "" {
+		return text
+	}
+	return strings.TrimSpace(n + "\n\n" + text)
 }
 
 func ref(cwd string) (search.ProjectRef, string) {

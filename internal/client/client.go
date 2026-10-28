@@ -146,7 +146,7 @@ func (c *Client) do(ctx context.Context, method, path string, reqBody, respBody 
 		}
 		return he
 	}
-	if respBody != nil {
+	if respBody != nil && resp.StatusCode != http.StatusNoContent {
 		if err := json.Unmarshal(body, respBody); err != nil {
 			return fmt.Errorf("client: unmarshal response: %w", err)
 		}
@@ -285,9 +285,12 @@ func (c *Client) SyncStatus(ctx context.Context) (*model.SyncStatusResponse, err
 	return &resp, nil
 }
 
-// ReportSync sends the local spool state (POST /api/v1/sync/report).
-func (c *Client) ReportSync(ctx context.Context, rep model.SyncReport) error {
-	return c.do(ctx, "POST", "/api/v1/sync/report", rep, nil)
+// ReportSync sends the local spool state (POST /api/v1/sync/report) and
+// returns the server's version ("" from servers that do not report it).
+func (c *Client) ReportSync(ctx context.Context, rep model.SyncReport) (string, error) {
+	var resp model.SyncReportResponse
+	err := c.do(ctx, "POST", "/api/v1/sync/report", rep, &resp)
+	return resp.ServerVersion, err
 }
 
 // Health calls GET /api/v1/health (no auth required).
