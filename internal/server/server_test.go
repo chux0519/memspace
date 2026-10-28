@@ -501,6 +501,13 @@ func TestSessionSummaryLifecycle(t *testing.T) {
 		ev("evt_sum_0005", "session.ended", `{"reason":"exit"}`),
 	})
 
+	// Before the summary exists, the list takes the requests from the prompts.
+	var pending []model.SessionInfo
+	getJSON(t, srv, tok, "/api/v1/sessions?git_identity="+git, &pending)
+	if len(pending) != 1 || pending[0].Objective != "修复登录接口的认证超时问题" || pending[0].LatestRequest != "修复登录接口的认证超时问题" {
+		t.Fatalf("list before the summary = %+v", pending)
+	}
+
 	// session.ended makes the summary job due immediately.
 	runner := &jobs.Runner{DB: database, Logf: func(string, ...any) {}, Handlers: map[string]jobs.Handler{summary.JobKind: summary.Handler(database)}}
 	if ran, err := runner.RunOnce(context.Background()); !ran || err != nil {

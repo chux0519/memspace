@@ -283,3 +283,35 @@ func Load(ctx context.Context, db *sql.DB, sessionID string) (*Summary, bool, er
 	s.normalize()
 	return &s, true, nil
 }
+
+// Requests derives a session's objective and latest request from its prompts
+// the way a summary does, for sessions whose summary is not generated yet
+// (summaries wait until the session has been quiet for IdleDelay).
+func Requests(ctx context.Context, db *sql.DB, sessionID string) (objective, latest string, err error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT json_extract(payload_json, '$.prompt') FROM events
+		WHERE session_id = ? AND event_type = 'user.prompt'
+		ORDER BY occurred_at, sequence_number`, sessionID)
+	if err != nil {
+		return "", "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p sql.NullString
+		if err := rows.Scan(&p); err != nil {
+			return "", "", err
+		}
+		text := strings.TrimSpace(p.String)
+		if !substantive(text) {
+			continue
+		}
+		if objective == "" {
+			objective = text
+		}
+		latest = text
+	}
+	if err := rows.Err(); err != nil {
+		return "", "", err
+	}
+	return redact.Truncate(objective, maxText), redact.Truncate(latest, maxText), nil
+}

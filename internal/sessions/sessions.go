@@ -136,7 +136,27 @@ func List(ctx context.Context, db *sql.DB, owner string, q Query) ([]model.Sessi
 		}
 		out = append(out, si)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	for i := range out {
+		if err := fillRequests(ctx, db, &out[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// fillRequests gives a session whose summary is not generated yet its
+// objective and latest request from the prompts.
+func fillRequests(ctx context.Context, db *sql.DB, si *model.SessionInfo) error {
+	if si.Objective != "" {
+		return nil
+	}
+	var err error
+	si.Objective, si.LatestRequest, err = summary.Requests(ctx, db, si.SessionID)
+	return err
 }
 
 // Get returns one of the owner's sessions.
@@ -147,6 +167,9 @@ func Get(ctx context.Context, db *sql.DB, owner, sessionID string) (*model.Sessi
 		return nil, nil
 	}
 	if err != nil {
+		return nil, err
+	}
+	if err := fillRequests(ctx, db, &si); err != nil {
 		return nil, err
 	}
 	return &si, nil
