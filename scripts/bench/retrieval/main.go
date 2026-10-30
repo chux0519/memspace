@@ -41,15 +41,16 @@ type document struct {
 	Evidence string `json:"evidence"`
 }
 type question struct {
-	ID       string     `json:"id"`
-	Split    string     `json:"split"`
-	Category string     `json:"category"`
-	Query    string     `json:"query"`
-	Project  string     `json:"project"`
-	Scope    string     `json:"scope"`
-	Selected []string   `json:"selected"`
-	Groups   [][]string `json:"evidence_groups"`
-	Budget   int        `json:"budget"`
+	ID           string     `json:"id"`
+	Split        string     `json:"split"`
+	Category     string     `json:"category"`
+	Query        string     `json:"query"`
+	Project      string     `json:"project"`
+	Scope        string     `json:"scope"`
+	Selected     []string   `json:"selected"`
+	Groups       [][]string `json:"evidence_groups"`
+	Budget       int        `json:"budget"`
+	RelevantRefs []string   `json:"relevant_refs,omitempty"`
 }
 type corpus struct {
 	Version   string     `json:"version"`
@@ -68,6 +69,8 @@ type evidenceScore struct {
 	OutOfScope       int     `json:"out_of_scope"`
 	Returned         int     `json:"returned"`
 	ProvenanceErrors int     `json:"provenance_errors"`
+	JudgedReturned   *int    `json:"judged_returned,omitempty"`
+	JudgedIrrelevant *int    `json:"judged_irrelevant,omitempty"`
 }
 
 type semanticStats struct {
@@ -145,6 +148,24 @@ func canonical(s string) string {
 // match establishes retrieval; injection additionally requires visible evidence.
 func score(q question, refs []string, text string, visible bool, docs map[string]document) evidenceScore {
 	s := evidenceScore{Negative: len(q.Groups) == 0, Returned: len(refs)}
+	if q.RelevantRefs != nil {
+		allowed := map[string]bool{}
+		for _, ref := range q.RelevantRefs {
+			allowed[ref] = true
+		}
+		seen := map[string]bool{}
+		total, bad := 0, 0
+		for _, ref := range refs {
+			if !seen[ref] {
+				seen[ref] = true
+				total++
+				if !allowed[ref] {
+					bad++
+				}
+			}
+		}
+		s.JudgedReturned, s.JudgedIrrelevant = &total, &bad
+	}
 	ranks := map[string]int{}
 	for i, ref := range refs {
 		d, ok := docs[ref]
@@ -273,6 +294,23 @@ func validate(c corpus) error {
 			return fmt.Errorf("invalid question %q", q.ID)
 		}
 		ids[q.ID] = true
+		if q.RelevantRefs != nil {
+			allowed := map[string]bool{}
+			for _, ref := range q.RelevantRefs {
+				d, ok := docs[ref]
+				if !ok || !allowedProject(q, d.Project) {
+					return fmt.Errorf("invalid relevant source %s/%s", q.ID, ref)
+				}
+				allowed[ref] = true
+			}
+			for _, group := range q.Groups {
+				for _, ref := range group {
+					if !allowed[ref] {
+						return fmt.Errorf("required source missing from relevance labels %s/%s", q.ID, ref)
+					}
+				}
+			}
+		}
 		if q.Scope != model.ScopeCurrentProject && q.Scope != model.ScopeAllProjects && q.Scope != model.ScopeSelectedProjects {
 			return fmt.Errorf("invalid scope %s", q.ID)
 		}
@@ -402,6 +440,7 @@ func run() error {
 	candidateDepths := flag.String("export-candidates", "", "optional comma-separated candidate depths for offline rerank study (e.g. 12,24)")
 	candidateFloor := flag.Float64("candidate-floor", -1, "experimental candidate-only similarity floor; -1 keeps production default")
 	focused := flag.Bool("focused", false, "allow a small focused regression fixture outside the default 50–100 questions")
+	relevancePath := flag.String("relevance-labels", "", "optional SHA-bound exhaustive relevance judgments for a subset of questions")
 	flag.Parse()
 	if *candidateFloor != -1 && !(*candidateFloor >= 0 && *candidateFloor <= 1) {
 		return errors.New("candidate-floor must be -1 or within [0,1]")
@@ -430,9 +469,25 @@ func run() error {
 		return fmt.Errorf("expected 50–100 questions; use -focused for a focused regression, got %d", len(c.Questions))
 	}
 	corpusHash := sha256.Sum256(raw)
+	var relevanceRaw []byte
+	var relevanceHash string
+	if *relevancePath != "" {
+		relevanceRaw, err = os.ReadFile(*relevancePath)
+		if err != nil {
+			return err
+		}
+		if err = applyRelevanceLabels(&c, relevanceRaw, hex.EncodeToString(corpusHash[:])); err != nil {
+			return err
+		}
+		h := sha256.Sum256(relevanceRaw)
+		relevanceHash = hex.EncodeToString(h[:])
+		if err = validate(c); err != nil {
+			return err
+		}
+	}
 	sourceCopies := map[string][]byte{}
 	sourceHashes := map[string]string{}
-	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
+	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "scripts/bench/retrieval/relevance.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return e
@@ -789,6 +844,16 @@ func run() error {
 		}
 		return nil
 	}(), "query_embedding_timeout_ms": timeout.Milliseconds(), "seed_ms": seedMS, "embedding_build_ms": embedMS, "git_commit": git("rev-parse", "HEAD"), "git_status": git("status", "--short"), "go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH, "cpu_count": runtime.NumCPU(), "go_heap_bytes_end": mem.Alloc, "at": time.Now().UTC(), "limits": []string{"synthetic authored labels, not independently reviewed; no claim about real-world task success", "warm sequential runs on loopback; no CLI startup, production auth or LAN latency", "context and hooks use current project; all-project query excluded", "context honors per-question budget; hooks use production default budget", "hook_repeat deliberately shares delivered state; not included in independent recall", "token counts require tokenize_report.py; characters are not tokens", "corpus is small unless optional distractors supplied; not a production-scale latency benchmark", "no background ingest, concurrent load, failure injection, or coding-agent execution"}}
+	if relevanceHash != "" {
+		manifest["relevance_labels_sha256"] = relevanceHash
+		n := 0
+		for _, q := range c.Questions {
+			if q.RelevantRefs != nil {
+				n++
+			}
+		}
+		manifest["judged_questions"] = n
+	}
 	for _, name := range []string{"bench.db", "bench.db-wal", "bench.db-shm"} {
 		if info, e := os.Stat(filepath.Join(work, name)); e == nil {
 			manifest[name+"_bytes"] = info.Size()
@@ -820,6 +885,11 @@ func run() error {
 	// cannot silently change the meaning of an old result.
 	if err = os.WriteFile(filepath.Join(*out, "corpus.json"), raw, 0600); err != nil {
 		return err
+	}
+	if relevanceRaw != nil {
+		if err = os.WriteFile(filepath.Join(*out, "relevance-labels.json"), relevanceRaw, 0600); err != nil {
+			return err
+		}
 	}
 	for name, data := range sourceCopies {
 		if err = os.WriteFile(filepath.Join(*out, name), data, 0600); err != nil {

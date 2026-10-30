@@ -140,3 +140,7 @@ agentmemory 固定 commit `c6c476d2905926727fa5848a134d7a3b38a7fa98`：
 
 全仓 Go 测试、contextpack/runner race 和 vet、6 项 Python 测试通过。
 全部改动仍在本地，未推送、未部署。
+
+后续公共 LongMemEval-S 同口径比较、候选去重与14题相关性补充标注见
+[LONGMEMEVAL.md](LONGMEMEVAL.md)。`rerank/replay.py` 默认固定在本实验的 `a3e2709`，
+新候选流程需重新导出、重新模型评分，不能套用旧分数。

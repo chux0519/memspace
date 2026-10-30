@@ -1,0 +1,401 @@
+{
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "official_source_sha256": "25c0fc4f610b612675600ebac66da592716081b7cf97b34c018b417f1b34520f",
+  "k": 5,
+  "scope": "supplied-session retrieval component; no capture, injection, answer or judge evaluation",
+  "latency_scope": "diagnostic; different storage engines and cold/warm behavior; not a production latency claim",
+  "systems": {
+    "longmemeval-agentmemory-reference/grep": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 339,
+      "strict_all_at_5": 0.7212765957446808,
+      "any_successes": 417,
+      "fractional_recall": 0.8081914893617022,
+      "query_ms": {
+        "p50": 2.591877000000295,
+        "p95": 5.930925850000082
+      },
+      "ingest_ms_p50": 0.006467500000326254,
+      "types": {
+        "knowledge-update": {
+          "successes": 66,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 64,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 50,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 14,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 60,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 85,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-agentmemory-reference",
+      "manifest_sha256": "0a6044c84d636cd3f9f7502c34521d6a4984f0233c728f2f164ba1f6b71c4fda",
+      "scores_sha256": "1f570ebc3840e80d8f525bb7bdf27a70bf5787d4b81b798744c3b0650b0967db",
+      "evidence_sha256": "b52133e21236e79050a2408273efe05f209ae17a1f5412361ebe6941efa197d7",
+      "worker_sha256": null,
+      "paired_vs_agentmemory": {
+        "wins": 5,
+        "losses": 64,
+        "strict_rate_difference": -0.125531914893617,
+        "paired_bootstrap_95_ci": [
+          -0.1595744680851064,
+          -0.09361702127659574
+        ],
+        "mcnemar_exact_two_sided_p": 4.119230997967627e-14,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    },
+    "longmemeval-agentmemory-reference/agentmemory-bm25-component": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 398,
+      "strict_all_at_5": 0.8468085106382979,
+      "any_successes": 452,
+      "fractional_recall": 0.9171985815602837,
+      "query_ms": {
+        "p50": 3.069631499995012,
+        "p95": 3.6053062500017403
+      },
+      "ingest_ms_p50": 291.4686939999956,
+      "types": {
+        "knowledge-update": {
+          "successes": 70,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 86,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 55,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 25,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 63,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 99,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-agentmemory-reference",
+      "manifest_sha256": "0a6044c84d636cd3f9f7502c34521d6a4984f0233c728f2f164ba1f6b71c4fda",
+      "scores_sha256": "1f570ebc3840e80d8f525bb7bdf27a70bf5787d4b81b798744c3b0650b0967db",
+      "evidence_sha256": "b52133e21236e79050a2408273efe05f209ae17a1f5412361ebe6941efa197d7",
+      "worker_sha256": null,
+      "paired_vs_agentmemory": {
+        "wins": 0,
+        "losses": 0,
+        "strict_rate_difference": 0,
+        "paired_bootstrap_95_ci": [
+          0.0,
+          0.0
+        ],
+        "mcnemar_exact_two_sided_p": 1,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    },
+    "longmemeval-memspace-first/memspace-keyword-porter": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 375,
+      "strict_all_at_5": 0.7978723404255319,
+      "any_successes": 441,
+      "fractional_recall": 0.8777304964539007,
+      "query_ms": {
+        "p50": 119.22047349999775,
+        "p95": 294.78185045000333
+      },
+      "ingest_ms_p50": 94.74928899999941,
+      "types": {
+        "knowledge-update": {
+          "successes": 69,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 81,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 54,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 23,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 61,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 87,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-memspace-first",
+      "manifest_sha256": "6db5357b8a00ca500b1ec066c3656e1884a65741c3c3ef0588939192686623bf",
+      "scores_sha256": "7b27afba0eb5d952580243474b46e326e99556a687fc02fa28dddbf81d77bdf4",
+      "evidence_sha256": "2b9b884217e1ef71219e5444469a647a6b518b9c89a70dc446ddd111f3d85ee2",
+      "worker_sha256": "f085b152b9c12a030a9f3190d259137bc6107ec4f19fddce77e0ef4afff10efc",
+      "paired_vs_agentmemory": {
+        "wins": 8,
+        "losses": 31,
+        "strict_rate_difference": -0.04893617021276596,
+        "paired_bootstrap_95_ci": [
+          -0.07446808510638298,
+          -0.02553191489361702
+        ],
+        "mcnemar_exact_two_sided_p": 0.0002940768754342571,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    },
+    "longmemeval-memspace-first/memspace-bm25-porter": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 396,
+      "strict_all_at_5": 0.8425531914893617,
+      "any_successes": 454,
+      "fractional_recall": 0.9152836879432624,
+      "query_ms": {
+        "p50": 41.77062650001608,
+        "p95": 114.34978625000943
+      },
+      "ingest_ms_p50": 90.37895999998727,
+      "types": {
+        "knowledge-update": {
+          "successes": 70,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 85,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 56,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 26,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 62,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 97,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-memspace-first",
+      "manifest_sha256": "6db5357b8a00ca500b1ec066c3656e1884a65741c3c3ef0588939192686623bf",
+      "scores_sha256": "7b27afba0eb5d952580243474b46e326e99556a687fc02fa28dddbf81d77bdf4",
+      "evidence_sha256": "2b9b884217e1ef71219e5444469a647a6b518b9c89a70dc446ddd111f3d85ee2",
+      "worker_sha256": "f085b152b9c12a030a9f3190d259137bc6107ec4f19fddce77e0ef4afff10efc",
+      "paired_vs_agentmemory": {
+        "wins": 11,
+        "losses": 13,
+        "strict_rate_difference": -0.00425531914893617,
+        "paired_bootstrap_95_ci": [
+          -0.02553191489361702,
+          0.01702127659574468
+        ],
+        "mcnemar_exact_two_sided_p": 0.8388197422027588,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    },
+    "longmemeval-exact/memspace-bm25-porter": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 403,
+      "strict_all_at_5": 0.8574468085106383,
+      "any_successes": 456,
+      "fractional_recall": 0.925354609929078,
+      "query_ms": {
+        "p50": 37.12730399999964,
+        "p95": 94.54304175000428
+      },
+      "ingest_ms_p50": 90.16052649999983,
+      "types": {
+        "knowledge-update": {
+          "successes": 71,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 87,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 56,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 25,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 64,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 100,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-exact",
+      "manifest_sha256": "0b6d59fa1a2e0d8a4b30e90acdd9576880b36163225d985240a21e4c556a93c4",
+      "scores_sha256": "05bd78fe679a4526afc13bcb7c0927da740d1e8176b0c08f72336f222191b602",
+      "evidence_sha256": "e6e723bce12f21b104deecb0d3c33504393848c318b33b9cc0d7c7d1a1df6679",
+      "worker_sha256": "75179c853e96c81d5c2f6ed7cc36c707b47ceb56d9df64c2f3393dcc80d701a8",
+      "paired_vs_agentmemory": {
+        "wins": 11,
+        "losses": 6,
+        "strict_rate_difference": 0.010638297872340425,
+        "paired_bootstrap_95_ci": [
+          -0.006382978723404255,
+          0.027659574468085105
+        ],
+        "mcnemar_exact_two_sided_p": 0.332305908203125,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    },
+    "longmemeval-session-rrf/memspace-session-rrf-porter": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 388,
+      "strict_all_at_5": 0.825531914893617,
+      "any_successes": 449,
+      "fractional_recall": 0.9008156028368794,
+      "query_ms": {
+        "p50": 1131.9525869999925,
+        "p95": 3039.9999287499786
+      },
+      "ingest_ms_p50": 266.24284449994957,
+      "types": {
+        "knowledge-update": {
+          "successes": 70,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 84,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 56,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 25,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 62,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 91,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-session-rrf",
+      "manifest_sha256": "d9d5a18403323df671addffd3e0977079c0cc2cb18613911debc13cc62dc58b9",
+      "scores_sha256": "e22e61d76606e34cedf1c28f48ad04dde5492982f2ed8cf9e8dcd1da57897b2e",
+      "evidence_sha256": "0a84647bedcc844949c8f84f4cadef41f1e6d62302824ed0831d70379a4b3c33",
+      "worker_sha256": "3f22da3c3b41c5d21f0376145180404621c702dd60fd5a1c09e98b6c64f0ff53",
+      "paired_vs_agentmemory": {
+        "wins": 9,
+        "losses": 19,
+        "strict_rate_difference": -0.02127659574468085,
+        "paired_bootstrap_95_ci": [
+          -0.0425531914893617,
+          0.0
+        ],
+        "mcnemar_exact_two_sided_p": 0.08715855330228806,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    },
+    "longmemeval-final/memspace-bm25-exact-porter": {
+      "coverage": 500,
+      "errors": 0,
+      "answerable": 470,
+      "strict_successes": 403,
+      "strict_all_at_5": 0.8574468085106383,
+      "any_successes": 456,
+      "fractional_recall": 0.925354609929078,
+      "query_ms": {
+        "p50": 26.593226000002687,
+        "p95": 71.5630785999983
+      },
+      "ingest_ms_p50": 97.38708150000093,
+      "types": {
+        "knowledge-update": {
+          "successes": 71,
+          "questions": 72
+        },
+        "multi-session": {
+          "successes": 87,
+          "questions": 121
+        },
+        "single-session-assistant": {
+          "successes": 56,
+          "questions": 56
+        },
+        "single-session-preference": {
+          "successes": 25,
+          "questions": 30
+        },
+        "single-session-user": {
+          "successes": 64,
+          "questions": 64
+        },
+        "temporal-reasoning": {
+          "successes": 100,
+          "questions": 127
+        }
+      },
+      "run": "longmemeval-final",
+      "manifest_sha256": "77c8052e4433c9edf8ff1d87649e3ec242fe34d8014b90543997d8fc69a08e52",
+      "scores_sha256": "f390821c0a5453d8c42cc8c03622520778489e3e9308151d54669d9fc16a7a84",
+      "evidence_sha256": "5c6beb579dc3036e1d8aa14a55fbc54e38327d7d205991e335d436392cfc2460",
+      "worker_sha256": "eb5378cca0c4167346d017faab6d9def9ce440891155700abe8e0605814a8d5d",
+      "paired_vs_agentmemory": {
+        "wins": 11,
+        "losses": 6,
+        "strict_rate_difference": 0.010638297872340425,
+        "paired_bootstrap_95_ci": [
+          -0.006382978723404255,
+          0.027659574468085105
+        ],
+        "mcnemar_exact_two_sided_p": 0.332305908203125,
+        "caution": "descriptive; variants developed against this public benchmark, not an untouched holdout"
+      }
+    }
+  }
+}

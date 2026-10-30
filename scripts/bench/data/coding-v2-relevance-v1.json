@@ -1,0 +1,50 @@
+{
+  "version": "coding-v2-relevance-v1",
+  "corpus_sha256": "edca409435997beb9b4a789651b21895d000abae55db451c47476f2f0552025f",
+  "criterion": "Post-hoc agent-authored diagnostic audit of 14 questions against all 72 corpus documents. Relevant = directly answers or supports a part of the requested entity/topic within scope; topic overlap or another entity is insufficient. q026 also permits release_gate as supporting rollback procedure. Not independent human annotation; unlisted questions are unjudged. Do not select retrieval parameters with these labels.",
+  "judgments": {
+    "q016": [
+      "deadlock"
+    ],
+    "q025": [
+      "dep_inject"
+    ],
+    "q026": [
+      "rollback",
+      "release_gate"
+    ],
+    "q052": [
+      "csv_bom"
+    ],
+    "q078": [],
+    "q081": [
+      "orion-decision",
+      "orion-validation"
+    ],
+    "q082": [
+      "lyra-decision",
+      "lyra-validation"
+    ],
+    "q083": [
+      "vela-decision",
+      "vela-validation"
+    ],
+    "q084": [
+      "pavo-decision",
+      "pavo-validation"
+    ],
+    "q085": [
+      "atlas-long"
+    ],
+    "q086": [
+      "cygnus-long"
+    ],
+    "q087": [
+      "draco-long"
+    ],
+    "q088": [
+      "hydra-long"
+    ],
+    "q097": []
+  }
+}

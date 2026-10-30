@@ -28,7 +28,13 @@ def summarize(rows):
     avg = lambda rs, key: statistics.mean(r["score"][key] for r in rs) if rs else None
     calls = sum(r["semantic"]["calls"] for r in rows)
     quality = rows[0]["layer"] != "hook_repeat"
+    judged = [r for r in rows if r["score"].get("judged_returned") is not None] if quality else []
+    judged_total = sum(r["score"]["judged_returned"] for r in judged)
+    judged_bad = sum(r["score"]["judged_irrelevant"] for r in judged)
     return dict(
+        judged_questions=len({r["question_id"] for r in judged}),
+        judged_returned=judged_total, judged_irrelevant=judged_bad,
+        judged_precision=1-judged_bad/judged_total if judged_total else None,
         samples=len(rows), positive_samples=len(positive), negative_samples=len(negative),
         # Repetitions are repeated measurements, not independent questions.
         unique_questions=len({r["question_id"] for r in rows}),

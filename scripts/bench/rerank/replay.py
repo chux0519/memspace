@@ -22,7 +22,7 @@ def main():
     ap.add_argument("--embedding-url", default="http://127.0.0.1:8771/v1/embeddings")
     ap.add_argument("--candidate-floor", type=float, default=-1)
     ap.add_argument("--deep48", action="store_true")
-    ap.add_argument("--base-commit", default="HEAD", help="production revision to evaluate in the disposable worktree")
+    ap.add_argument("--base-commit", default="a3e2709", help="frozen pre-dedup production revision used by the published reranker experiment; new candidate pipelines require new model scores")
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[3]
     out, scores = args.out.resolve(), args.scores.resolve()
@@ -64,7 +64,7 @@ def main():
                                           "internal/model/model.go", "internal/search/query.go", "go.mod", "go.sum"]]
             for source in sources:
                 relative = source.relative_to(work)
-                dest = out / "source" / relative
+                dest = out / "source" / (str(relative) + ".txt")
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, dest)
                 source_hashes[str(relative)] = hashlib.sha256(source.read_bytes()).hexdigest()

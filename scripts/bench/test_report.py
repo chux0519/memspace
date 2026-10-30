@@ -18,6 +18,18 @@ class ReportTests(unittest.TestCase):
         self.assertIsNone(result["tokens"])
         self.assertIsNone(summarize([self.row(layer="hook_repeat")])["any_hit"])
 
+    def test_partial_judgments_do_not_invent_precision(self):
+        unknown = self.row()
+        judged = self.row()
+        judged["score"].update(judged_returned=4, judged_irrelevant=1)
+        s = summarize([unknown, judged])
+        self.assertEqual(s["judged_precision"], .75)
+        self.assertEqual(s["judged_returned"], 4)
+        self.assertEqual(s["judged_questions"], 1)
+        judged["score"].update(judged_returned=0, judged_irrelevant=0)
+        self.assertIsNone(summarize([judged])["judged_precision"])
+        self.assertIsNone(summarize([unknown])["judged_precision"])
+
     def test_percentile_includes_tail(self):
         self.assertAlmostEqual(percentile([1, 2, 100], 0.95), 90.2)
         self.assertIsNone(percentile([], 0.5))

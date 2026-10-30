@@ -1,5 +1,9 @@
 # MemSpace retrieval baseline
 
+[LONGMEMEVAL.md](LONGMEMEVAL.md) records the separate public LongMemEval-S comparison,
+using agentmemory's unchanged loader/scorer and verified dataset SHA. This is supplied-session
+component retrieval, distinct from the injection regression below.
+
 `data/coding-v1.json` contains **80 synthetic, authored questions** over 60 answer
 records in four projects. It is a regression baseline, not independently reviewed
 human ground truth, a coding-task completion benchmark, or a competitor comparison.
