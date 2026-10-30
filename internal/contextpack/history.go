@@ -83,8 +83,9 @@ func historyPreview(h model.SearchResult) string {
 // Preserve session rank, but don't let a question suppress an independently
 // qualifying answer or failure from that same session. Prompt-only history
 // (for example user decisions) remains available when no such evidence exists.
-// Order candidates round-robin across sessions. Delivery caps and exact-content
-// deduplication happen after scoped source hydration in history().
+// Order candidates round-robin across sessions: cover other sessions before
+// filling spare slots with more evidence from one session. The overall delivery
+// cap and exact-content deduplication apply after scoped hydration in history().
 func historyCandidates(hits []model.SearchResult, current string, inject float64) []model.SearchResult {
 	var groups [][]model.SearchResult
 	sessions := map[string]int{}

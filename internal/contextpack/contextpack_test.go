@@ -300,3 +300,27 @@ func TestComplementaryEvidenceDedupAndCaseSensitiveIdentifiers(t *testing.T) {
 		t.Fatalf("immediate repeat delivered extra content: %s", p.Text)
 	}
 }
+
+func TestSessionEvidenceCanFillSpareSlotsWithoutCrowdingOtherSessions(t *testing.T) {
+	f := setup(t)
+	for _, session := range []string{"main-flow", "other-flow", "third-flow"} {
+		f.session(session, "linux-box", "codex", "ended")
+	}
+	for _, step := range []string{"plan_guard", "apply_patch", "verify_probe", "restore_backup", "fifth_boundary", "sixth_boundary"} {
+		f.event("main-flow", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": "Orion budget flow main_source: " + step})
+	}
+	f.event("other-flow", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": "Orion budget flow: second_session_evidence"})
+	f.event("third-flow", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": "Orion budget flow: third_session_evidence"})
+	p := f.build("linux-box", contextpack.Request{Mode: contextpack.ModePrompt, Project: webapp, Query: "Orion budget flow"})
+	if len(p.Items) != 6 {
+		t.Fatalf("expected six distinct sources: %+v\n%s", p.Items, p.Text)
+	}
+	for _, evidence := range []string{"second_session_evidence", "third_session_evidence"} {
+		if !strings.Contains(p.Text, evidence) {
+			t.Fatalf("missing %s: %s", evidence, p.Text)
+		}
+	}
+	if strings.Count(p.Text, "main_source") != 4 {
+		t.Fatalf("expected four complementary sources in spare slots: %s", p.Text)
+	}
+}

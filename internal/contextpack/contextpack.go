@@ -318,12 +318,8 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 	}
 	var out []section
 	inject, _ := search.MinSimilarities()
-	perSession := map[string]int{}
 	seenContent := map[string]map[string]bool{}
 	for _, h := range historyCandidates(resp.Results, current, inject) {
-		if h.SessionID != "" && perSession[h.SessionID] >= 2 {
-			continue
-		}
 		content, err := historyContent(ctx, db, owner, projectID, h, strongHistoryHit(h, inject))
 		if err != nil {
 			return nil, err
@@ -341,7 +337,6 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 				continue
 			}
 			seenContent[h.SessionID][key] = true
-			perSession[h.SessionID]++
 		}
 		text := fmt.Sprintf("- [%s] %s · %s@%s: ", h.Kind, h.OccurredAt.Local().Format("2006-01-02 15:04"), h.AgentType, h.DeviceName)
 		if h.Title != "" {
