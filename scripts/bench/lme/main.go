@@ -47,7 +47,10 @@ func load(path string) ([]question, error) {
 		return nil, err
 	}
 	var qs []question
-	return qs, json.Unmarshal(raw, &qs)
+	if err := json.Unmarshal(raw, &qs); err != nil {
+		return nil, err
+	}
+	return qs, nil
 }
 
 // event maps a conversation turn to the event the agent hooks would record.
@@ -125,9 +128,13 @@ func embedCmd(args []string) error {
 				todo = append(todo, c)
 			}
 		}
-		// Questions are embedded with the query path; cache them too.
+		// Query prefix is empty for bge-m3. Fill query vectors on resume too.
 		if !seenText[q.Question] {
 			seenText[q.Question] = true
+			var one int
+			if cache.QueryRow(`SELECT 1 FROM vectors WHERE hash=?`, hash(q.Question)).Scan(&one) != nil {
+				todo = append(todo, q.Question)
+			}
 		}
 	}
 	log.Printf("%d questions, %d sessions, %d distinct chunks, %d to embed", len(qs), len(seenSession), total, len(todo))
@@ -167,11 +174,15 @@ func embedCmd(args []string) error {
 func main() {
 	log.SetFlags(log.Ltime)
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: lme embed ...")
+		fmt.Fprintln(os.Stderr, "usage: lme embed|serve|run ...")
 		os.Exit(2)
 	}
 	var err error
 	switch os.Args[1] {
+	case "serve":
+		err = serveCmd(os.Args[2:])
+	case "run":
+		err = runCmd(os.Args[2:])
 	case "embed":
 		err = embedCmd(os.Args[2:])
 	default:
