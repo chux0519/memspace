@@ -58,10 +58,16 @@ async function main() {
     const gold = row.gold_sessions.map((id: string) => opaqueSessionId(q.id, id)).sort();
     assert.deepEqual(gold, [...q.goldSessionIds].sort());
     const official = scoreQuestion(q, ranked, 5, receipt.mode, receipt.duration_ms);
+    const official10 = scoreQuestion(q, ranked, 10, receipt.mode, receipt.duration_ms);
+    const goldSet = new Set(q.goldSessionIds);
+    const dcg = ranked.slice(0, 10).reduce((sum: number, r: any, i: number) => sum + (goldSet.has(r.sessionId) ? 1 / Math.log2(i + 2) : 0), 0);
+    const ideal = Array.from({ length: Math.min(10, goldSet.size) }, (_, i) => 1 / Math.log2(i + 2)).reduce((a, b) => a + b, 0);
     const fields = [
       ['recall_all_at_5', official.recallAllAtK],
       ['fractional_at_5', official.recallAtK],
       ['any_hit_at_5', official.hit === null ? null : Number(official.hit)],
+      ['recall_all_at_10', official10.recallAllAtK],
+      ['ndcg_at_10', official.recallAtK === null ? null : dcg / ideal],
     ] as const;
     for (const [key, want] of fields) {
       assert(want === null ? receipt[key] === null : Math.abs(receipt[key] - want) < 1e-12, `${q.id} ${key}`);
