@@ -1,0 +1,71 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"github.com/chux0519/memspace/internal/contextpack"
+	"github.com/chux0519/memspace/internal/model"
+	"github.com/chux0519/memspace/internal/search"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
+	"unicode/utf8"
+)
+
+func replayStudy(ctx context.Context, db *sql.DB, c corpus, docs map[string]document, out string) error {
+	f, e := os.OpenFile(filepath.Join(out, "study.jsonl"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if e != nil {
+		return e
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	depths := []int{12, 24}
+	if os.Getenv("MEMSPACE_BENCH_RERANK_DEEP48") == "1" {
+		depths = append(depths, 48)
+	}
+	for _, depth := range depths {
+		os.Setenv("MEMSPACE_BENCH_RERANK_DEPTH", strconv.Itoa(depth))
+		for _, mode := range []string{"baseline", "reorder", "replace", "rescue"} {
+			os.Setenv("MEMSPACE_BENCH_RERANK_MODE", mode)
+			thresholds := []float64{-4, -2, 0, 2, 4, 6}
+			if mode == "baseline" || mode == "reorder" {
+				thresholds = []float64{0}
+			}
+			for _, threshold := range thresholds {
+				os.Setenv("MEMSPACE_BENCH_RERANK_THRESHOLD", strconv.FormatFloat(threshold, 'f', -1, 64))
+				for _, q := range c.Questions {
+					if q.Scope == model.ScopeAllProjects {
+						continue
+					}
+					t := time.Now()
+					pack, err := contextpack.Build(ctx, db, owner, device, contextpack.Request{Mode: contextpack.ModePrompt, Project: search.ProjectRef{ID: q.Project}, Query: q.Query, Budget: q.Budget})
+					if err != nil {
+						return err
+					}
+					refs := []string{}
+					for _, it := range pack.Items {
+						refs = append(refs, it.Ref)
+					}
+					r := receipt{Question: q.ID, Split: q.Split, Category: q.Category, Layer: "context", Mode: mode, Query: q.Query, Pack: pack, Text: pack.Text, Score: score(q, refs, pack.Text, true, docs)}
+					r.Characters = utf8.RuneCountInString(pack.Text)
+					r.Bytes = len(pack.Text)
+					r.DurationMS = float64(time.Since(t).Microseconds()) / 1000
+					auditProvenance(&r, q, docs)
+					if e = enc.Encode(map[string]any{"depth": depth, "threshold": threshold, "receipt": r}); e != nil {
+						return e
+					}
+				}
+			}
+		}
+	}
+	return os.WriteFile(filepath.Join(out, "corpus.json"), mustCorpus(c), 0600)
+}
+func mustCorpus(c corpus) []byte {
+	b, e := json.MarshalIndent(c, "", "  ")
+	if e != nil {
+		panic(e)
+	}
+	return b
+}

@@ -14,6 +14,13 @@ evidence and missing-attribute/scope probes. See [EVIDENCE.md](EVIDENCE.md) for 
 controlled comparison, token tradeoff and limitations of its negative labels.
 Select it with `-corpus scripts/bench/data/coding-v2-evidence.json`.
 
+[RERANK.md](RERANK.md) records the official Python reranker reference and the
+follow-up session-budget fix. `data/session-budget-v1.json` is a separate eight
+question packing fixture requiring three or four sources in one session; run it
+with `-focused`, which permits small fixtures and skips the standard session-start
+fixtures. Do not merge these deliberately easy retrieval probes into headline
+quality scores. Default runs still require 50–100 questions.
+
 The fixed questions comprise 41 original queries, 11 paraphrases, 11 single-project
 collision queries, one all-project query, seven multi-evidence queries, one budget
 variant, and eight negative queries. Labels specify AND across `evidence_groups`

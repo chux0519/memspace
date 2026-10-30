@@ -77,12 +77,19 @@ type semanticStats struct {
 	LastError string `json:"last_error,omitempty"`
 }
 type observedSemantic struct {
-	svc     *embedding.Service
-	stats   semanticStats
-	backend search.Semantic
+	svc            *embedding.Service
+	stats          semanticStats
+	backend        search.Semantic
+	candidateFloor *float64
 }
 
-func (o *observedSemantic) MinSimilarities() (float64, float64) { return o.svc.MinSimilarities() }
+func (o *observedSemantic) MinSimilarities() (float64, float64) {
+	inject, floor := o.svc.MinSimilarities()
+	if o.candidateFloor != nil {
+		floor = *o.candidateFloor
+	}
+	return inject, floor
+}
 func (o *observedSemantic) SemanticSearch(ctx context.Context, q string, p []string, k int) ([]search.SemanticHit, error) {
 	o.stats.Calls++
 	backend := o.backend
@@ -239,8 +246,8 @@ func auditProvenance(r *receipt, q question, docs map[string]document) {
 }
 
 func validate(c corpus) error {
-	if len(c.Questions) < 50 || len(c.Questions) > 100 {
-		return fmt.Errorf("expected 50–100 questions, got %d", len(c.Questions))
+	if len(c.Questions) < 1 || len(c.Questions) > 1000 {
+		return fmt.Errorf("expected 1–1000 questions, got %d", len(c.Questions))
 	}
 	projects := map[string]bool{}
 	for _, p := range c.Projects {
@@ -392,7 +399,13 @@ func run() error {
 	diagnosticOnly := flag.Bool("diagnose-only", false, "inspect current output with counterfactual baseline gate labels; no latency measurements")
 	freeze := flag.Bool("freeze-queries", false, "freeze real query vectors for quality-only evaluation; latency excludes query embedding")
 	queryVectors := flag.String("query-vectors", "", "reuse frozen query snapshot (implies -freeze-queries)")
+	candidateDepths := flag.String("export-candidates", "", "optional comma-separated candidate depths for offline rerank study (e.g. 12,24)")
+	candidateFloor := flag.Float64("candidate-floor", -1, "experimental candidate-only similarity floor; -1 keeps production default")
+	focused := flag.Bool("focused", false, "allow a small focused regression fixture outside the default 50–100 questions")
 	flag.Parse()
+	if *candidateFloor != -1 && !(*candidateFloor >= 0 && *candidateFloor <= 1) {
+		return errors.New("candidate-floor must be -1 or within [0,1]")
+	}
 	if *queryVectors != "" {
 		*freeze = true
 	}
@@ -413,10 +426,13 @@ func run() error {
 	if err = validate(c); err != nil {
 		return err
 	}
+	if !*focused && (len(c.Questions) < 50 || len(c.Questions) > 100) {
+		return fmt.Errorf("expected 50–100 questions; use -focused for a focused regression, got %d", len(c.Questions))
+	}
 	corpusHash := sha256.Sum256(raw)
 	sourceCopies := map[string][]byte{}
 	sourceHashes := map[string]string{}
-	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
+	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return e
@@ -485,6 +501,9 @@ func run() error {
 			}
 		}
 		observer = &observedSemantic{svc: svc}
+		if *candidateFloor >= 0 {
+			observer.candidateFloor = candidateFloor
+		}
 		if *freeze {
 			backend, e := freezeQueries(ctx, d, svc, c, *url, *modelName, *queryVectors, *out)
 			if e != nil {
@@ -498,6 +517,11 @@ func run() error {
 		modes = append(modes, "semantic", "hybrid")
 	}
 	embedMS := float64(time.Since(embedStart).Microseconds()) / 1000
+	if *candidateDepths != "" {
+		if err = exportCandidates(ctx, d, c, *candidateDepths, *out); err != nil {
+			return err
+		}
+	}
 	if *diagnosticOnly {
 		return diagnose(ctx, d, c, docs, *out)
 	}
@@ -687,7 +711,11 @@ func run() error {
 	}
 	// Session-start has its own four deterministic fixtures. Generate summaries
 	// only now so they cannot change the scored retrieval corpus.
-	for _, id := range []string{"jwt_failure", "stripe_recovery", "release_gate", "stripe_notes"} {
+	startFixtures := []string{"jwt_failure", "stripe_recovery", "release_gate", "stripe_notes"}
+	if *focused {
+		startFixtures = nil
+	}
+	for _, id := range startFixtures {
 		doc := docs[id]
 		if _, err = d.Exec(`UPDATE sessions SET status='active' WHERE session_id=?`, doc.Session); err != nil {
 			return err
@@ -755,7 +783,7 @@ func run() error {
 	}
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
-	manifest := map[string]any{"schema_version": 1, "quality_only_frozen_queries": *freeze, "earliest_fixture_event_at": fixtureAnchor, "source_sha256": sourceHashes, "corpus_version": c.Version, "corpus_sha256": hex.EncodeToString(corpusHash[:]), "distractors_sha256": distractorHash, "questions": len(c.Questions), "labeled_documents": labeledDocs, "fixture_recipe": "one indexed generic user.prompt and one indexed agent.turn_completed per corpus document; last hour, ended sessions; four summaries added only for session-start fixtures", "distractor_documents": len(c.Documents) - labeledDocs, "documents_before_session_start": indexedBefore, "documents_after_session_start": docsN, "embedding_chunks_before_session_start": chunksN, "repeats": *repeats, "receipts": count, "modes": modes, "embedding": status, "embedding_at_end": func() any {
+	manifest := map[string]any{"schema_version": 1, "focused_fixture": *focused, "candidate_depths": *candidateDepths, "experimental_candidate_floor": *candidateFloor, "quality_only_frozen_queries": *freeze, "earliest_fixture_event_at": fixtureAnchor, "source_sha256": sourceHashes, "corpus_version": c.Version, "corpus_sha256": hex.EncodeToString(corpusHash[:]), "distractors_sha256": distractorHash, "questions": len(c.Questions), "labeled_documents": labeledDocs, "fixture_recipe": "one indexed generic user.prompt and one indexed agent.turn_completed per corpus document; last hour, ended sessions; standard runs add four summaries only for session-start fixtures, focused runs skip them", "distractor_documents": len(c.Documents) - labeledDocs, "documents_before_session_start": indexedBefore, "documents_after_session_start": docsN, "embedding_chunks_before_session_start": chunksN, "repeats": *repeats, "receipts": count, "modes": modes, "embedding": status, "embedding_at_end": func() any {
 		if observer != nil {
 			return observer.svc.Status(ctx)
 		}

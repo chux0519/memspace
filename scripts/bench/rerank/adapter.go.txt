@@ -1,0 +1,89 @@
+// Experimental adapter, copied only into a disposable worktree by replay.py.
+package contextpack
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/chux0519/memspace/internal/model"
+	"os"
+	"sort"
+	"strconv"
+	"sync"
+)
+
+var benchScores map[string]map[string]float64
+var benchDepthScores struct {
+	SchemaVersion int                                      `json:"schema_version"`
+	Scores        map[string]map[string]map[string]float64 `json:"scores"`
+}
+var benchScoresErr error
+var benchScoresOnce sync.Once
+
+func benchMode() string {
+	if mode := os.Getenv("MEMSPACE_BENCH_RERANK_MODE"); mode != "" {
+		return mode
+	}
+	return "baseline"
+}
+func benchThreshold() float64 {
+	v, e := strconv.ParseFloat(os.Getenv("MEMSPACE_BENCH_RERANK_THRESHOLD"), 64)
+	if e != nil {
+		panic(e)
+	}
+	return v
+}
+func benchDepth(original int) int {
+	if v, e := strconv.Atoi(os.Getenv("MEMSPACE_BENCH_RERANK_DEPTH")); e == nil && v > 0 {
+		return v
+	}
+	return original
+}
+func benchQualifies(h model.SearchResult, inject float64) bool {
+	if benchMode() == "baseline" || benchMode() == "reorder" {
+		return useHistoryHit(h, inject)
+	}
+	return true // benchRank already filtered using the experimental gate.
+}
+func benchStrong(h model.SearchResult) bool {
+	return (benchMode() == "replace" || benchMode() == "rescue") && h.Score >= benchThreshold()
+}
+func benchRank(query string, hits []model.SearchResult, inject float64) ([]model.SearchResult, error) {
+	if benchMode() == "baseline" {
+		return hits, nil
+	}
+	benchScoresOnce.Do(func() {
+		b, e := os.ReadFile(os.Getenv("MEMSPACE_BENCH_RERANK_SCORES"))
+		if e != nil {
+			benchScoresErr = e
+			return
+		}
+		benchScoresErr = json.Unmarshal(b, &benchDepthScores)
+		if benchScoresErr != nil || benchDepthScores.SchemaVersion != 2 {
+			benchDepthScores.Scores = nil
+			benchScoresErr = json.Unmarshal(b, &benchScores)
+		}
+	})
+	if benchScoresErr != nil {
+		return nil, benchScoresErr
+	}
+	out := []model.SearchResult{}
+	for _, h := range hits {
+		v, ok := benchScores[query][h.RefID]
+		if benchDepthScores.Scores != nil {
+			v, ok = benchDepthScores.Scores[os.Getenv("MEMSPACE_BENCH_RERANK_DEPTH")][query][h.RefID]
+		}
+		if !ok {
+			return nil, fmt.Errorf("missing frozen rerank score for %q / %s", query, h.RefID)
+		}
+		if benchMode() == "replace" && v < benchThreshold() {
+			continue
+		}
+		if benchMode() == "rescue" && v < benchThreshold() && !useHistoryHit(h, inject) {
+			continue
+		}
+		h.Score = v
+		out = append(out, h)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Score > out[j].Score })
+	return out, nil
+}

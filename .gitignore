@@ -11,3 +11,4 @@ config.toml
 # Benchmark receipts may contain private history; publish reviewed summaries only.
 /scripts/bench/runs/
 /scripts/bench/__pycache__/
+/scripts/bench/rerank/__pycache__/
