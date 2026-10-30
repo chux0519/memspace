@@ -1,5 +1,9 @@
 # MemSpace retrieval baseline
 
+[COMPARISON-PLAN.md](COMPARISON-PLAN.md) defines the next comparison against
+agentmemory, Nautilus Compass and Hindsight, including new Chinese/English
+retrieval cases, evidence-delivery checks, resource measurements and optimization gates.
+
 [LONGMEMEVAL.md](LONGMEMEVAL.md) records the separate public LongMemEval-S comparison,
 using agentmemory's unchanged loader/scorer and verified dataset SHA. This is supplied-session
 component retrieval, distinct from the injection regression below.
