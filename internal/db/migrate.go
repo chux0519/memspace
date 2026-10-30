@@ -46,6 +46,9 @@ var migration012 string
 //go:embed migrations/013_device_upgrades.sql
 var migration013 string
 
+//go:embed migrations/014_english_stemming.sql
+var migration014 string
+
 // migrate applies all schema migrations that have not yet been executed.
 // Uses a simple schema_migrations table to track applied migrations.
 func migrate(db *sql.DB) error {
@@ -75,6 +78,7 @@ func migrate(db *sql.DB) error {
 		{"011_device_requests", migration011},
 		{"012_drop_empty_summaries", migration012},
 		{"013_device_upgrades", migration013},
+		{"014_english_stemming", migration014},
 	}
 
 	for _, m := range migrations {

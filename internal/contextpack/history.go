@@ -2,7 +2,9 @@ package contextpack
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"sort"
@@ -13,6 +15,39 @@ import (
 	"github.com/chux0519/memspace/internal/redact"
 	"github.com/chux0519/memspace/internal/search"
 )
+
+// Collapse repeated source text before spending the candidate budget. Preserve
+// timestamps, roles and agent/device provenance: identical text from a later
+// event or another device may be the very evidence a temporal query needs.
+// Full source text is used, never a display snippet or a matching sub-chunk.
+func uniqueHistoryHits(ctx context.Context, db *sql.DB, owner, projectID string, hits []model.SearchResult, limit int) ([]model.SearchResult, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	seen := map[[32]byte]bool{}
+	var out []model.SearchResult
+	for _, h := range hits {
+		var title, body, files string
+		err := db.QueryRowContext(ctx, `SELECT d.title,d.body,d.files FROM search_docs d JOIN projects p ON p.project_id=d.project_id WHERE d.doc_id=? AND d.project_id=? AND p.user_id=?`, h.DocID, projectID, owner).Scan(&title, &body, &files)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		identity, _ := json.Marshal([]string{h.Kind, h.AgentType, h.DeviceID, h.OccurredAt.UTC().Format("2006-01-02T15:04:05.999999999Z"), title, body, files})
+		key := sha256.Sum256(identity)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, h)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
 
 // A fused hit retains its keyword Match label. A strong semantic match must
 // still qualify when partial keyword coverage would reject it on its own.

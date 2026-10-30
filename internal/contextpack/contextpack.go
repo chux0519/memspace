@@ -311,8 +311,12 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 	resp, err := search.Search(ctx, db, owner, model.SearchRequest{
 		Query: query, Scope: model.ScopeSelectedProjects, ProjectIDs: []string{projectID},
 		Kinds: []string{search.KindMemory, search.KindSummary, search.KindPrompt, search.KindReply, search.KindFailure, search.KindChange},
-		Limit: limit * 2, Highlight: model.HighlightMarks,
+		Limit: limit * 8, Highlight: model.HighlightMarks,
 	})
+	if err != nil {
+		return nil, err
+	}
+	resp.Results, err = uniqueHistoryHits(ctx, db, owner, projectID, resp.Results, limit*4)
 	if err != nil {
 		return nil, err
 	}

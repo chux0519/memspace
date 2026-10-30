@@ -242,8 +242,8 @@ type SearchRequest struct {
 	Since       *time.Time `json:"since,omitempty"`
 	Until       *time.Time `json:"until,omitempty"`
 	Limit       int        `json:"limit,omitempty"`
-	// Mode: "" (hybrid when semantic search is available), "keyword" or
-	// "semantic".
+	// Mode: "" (hybrid), "keyword" (coverage first), "bm25" (lexical rank),
+	// "semantic" (vectors), or "session" (distinct sessions with rank fusion).
 	Mode string `json:"mode,omitempty"`
 	// Highlight selects snippet match markers: "" for [brackets], or
 	// HighlightMarks for U+E000…U+E001 (used by the web UI).

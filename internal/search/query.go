@@ -172,14 +172,17 @@ func MinSimilarities() (inject, searchFloor float64) {
 // semantic search is available, its results are fused with the keyword
 // results by Reciprocal Rank Fusion.
 func Search(ctx context.Context, db *sql.DB, ownerUserID string, req model.SearchRequest) (*model.SearchResponse, error) {
+	if req.Mode == "session" {
+		return SearchSessions(ctx, db, ownerUserID, req)
+	}
 	resp := &model.SearchResponse{Results: []model.SearchResult{}, Scope: req.Scope}
 	if resp.Scope == "" {
 		resp.Scope = model.ScopeCurrentProject
 	}
 	switch req.Mode {
-	case "", "keyword", "semantic":
+	case "", "keyword", "semantic", "bm25":
 	default:
-		return nil, fmt.Errorf("%w: mode must be keyword or semantic", ErrBadRequest)
+		return nil, fmt.Errorf("%w: mode must be keyword, bm25, semantic or session", ErrBadRequest)
 	}
 	limit := req.Limit
 	if limit <= 0 {
@@ -204,7 +207,7 @@ func Search(ctx context.Context, db *sql.DB, ownerUserID string, req model.Searc
 		}
 	}
 	var sem []model.SearchResult
-	if req.Mode != "keyword" && semantic != nil && strings.TrimSpace(req.Query) != "" {
+	if req.Mode != "keyword" && req.Mode != "bm25" && semantic != nil && strings.TrimSpace(req.Query) != "" {
 		if sem, err = semanticResults(ctx, db, ownerUserID, req, projectIDs, limit); err != nil {
 			return nil, err
 		}
@@ -263,6 +266,31 @@ func keyword(ctx context.Context, db *sql.DB, owner string, req model.SearchRequ
 	terms := Terms(expr)
 	if len(terms) == 0 {
 		return nil, "query has no searchable terms", nil
+	}
+	if req.Mode == "bm25" {
+		// Natural-language BM25 uses whole English words. Porter handles
+		// inflections; autocomplete prefixes can spuriously match other words.
+		lexical := append([]string(nil), terms...)
+		for i, term := range lexical {
+			if word := asciiWord(term); word != "" {
+				lexical[i] = `"` + word + `"`
+			}
+		}
+		results, err := query(ctx, db, owner, strings.Join(lexical, " OR "), projectIDs, req, limit, nil)
+		if err != nil {
+			return nil, "", err
+		}
+		if err = countTerms(ctx, db, lexical, results); err != nil {
+			return nil, "", err
+		}
+		for i := range results {
+			results[i].TotalTerms = len(terms)
+			results[i].Match = "any"
+			if results[i].MatchedTerms == len(terms) {
+				results[i].Match = "all"
+			}
+		}
+		return results, "", nil
 	}
 	seen := map[int64]bool{}
 	results, err := query(ctx, db, owner, strings.Join(terms, " AND "), projectIDs, req, limit, seen)
