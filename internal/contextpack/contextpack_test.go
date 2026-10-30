@@ -276,3 +276,27 @@ func TestPromptKeepsShortSourceEvidenceBeyondSearchPreview(t *testing.T) {
 		t.Fatal("other project received source")
 	}
 }
+
+func TestComplementaryEvidenceDedupAndCaseSensitiveIdentifiers(t *testing.T) {
+	f := setup(t)
+	f.session("worker", "linux-box", "codex", "ended")
+	f.event("worker", time.Hour, "user.prompt", map[string]any{"prompt": "记录此次排查"})
+	a := "Orion worker uses QueueID for the first boundary."
+	f.event("worker", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": a})
+	f.event("worker", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": a})
+	f.event("worker", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": "Orion worker uses queueID for the first boundary."})
+	req := contextpack.Request{Mode: contextpack.ModePrompt, Project: webapp, Query: "Orion worker boundary"}
+	p := f.build("linux-box", req)
+	if len(p.Items) != 2 || !strings.Contains(p.Text, "QueueID") || !strings.Contains(p.Text, "queueID") {
+		t.Fatalf("complementary evidence lost or duplicates emitted: %+v\n%s", p.Items, p.Text)
+	}
+	if strings.Count(p.Text, a) != 1 {
+		t.Fatalf("duplicate source body injected: %s", p.Text)
+	}
+	for _, it := range p.Items {
+		req.Exclude = append(req.Exclude, it.Key)
+	}
+	if p := f.build("linux-box", req); p.Text != "" {
+		t.Fatalf("immediate repeat delivered extra content: %s", p.Text)
+	}
+}

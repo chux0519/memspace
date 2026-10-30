@@ -84,20 +84,45 @@ func TestHistoryContentScopeAndBound(t *testing.T) {
 		t.Fatal(err)
 	}
 	hit := model.SearchResult{DocID: shortID, Snippet: "[认证]…"}
-	text, err := historyContent(context.Background(), d, "owner", "p", hit)
+	text, err := historyContent(context.Background(), d, "owner", "p", hit, true)
 	if err != nil || !strings.Contains(text, "在事务中更新 used_at") {
 		t.Fatalf("missing complete evidence: %q %v", text, err)
 	}
 	for _, scope := range [][2]string{{"other", "p"}, {"owner", "outside"}} {
-		text, err = historyContent(context.Background(), d, scope[0], scope[1], hit)
+		text, err = historyContent(context.Background(), d, scope[0], scope[1], hit, true)
 		if err != nil || text != "" {
 			t.Fatalf("scope leak: %q %v", text, err)
 		}
 	}
 	hit.DocID = longID
 	hit.Snippet = "查询附近的匹配片段"
-	text, err = historyContent(context.Background(), d, "owner", "p", hit)
+	text, err = historyContent(context.Background(), d, "owner", "p", hit, true)
 	if err != nil || text != hit.Snippet {
 		t.Fatalf("long source expanded without a bound: %q %v", text, err)
+	}
+
+	hit.Match = "any"
+	hit.Snippet = search.MarkOpen + "漫长" + search.MarkClose + "…"
+	hit.EvidenceText = "漫长的历史记录。"
+	text, err = historyContent(context.Background(), d, "owner", "p", hit, false)
+	if err != nil || text != "漫长…" {
+		t.Fatalf("weak match expanded into long context: %q %v", text, err)
+	}
+	hit.Match = "semantic"
+	hit.EvidenceText = "stale source that is no longer in the indexed document"
+	hit.Snippet = hit.EvidenceText
+	text, err = historyContent(context.Background(), d, "owner", "p", hit, true)
+	if err != nil || text != "" {
+		t.Fatalf("stale chunk was injected: %q %v", text, err)
+	}
+
+}
+
+func TestOriginalEvidenceWindow(t *testing.T) {
+	text := strings.Repeat("例行背景说明。", 40) + "Atlas 503 修复记录：" + strings.Repeat("核对现场版本。", 15) + "最终使用 atlas_route_epoch 验证快照。" + strings.Repeat("附录信息。", 80)
+	h := model.SearchResult{Snippet: search.MarkOpen + "Atlas" + search.MarkClose + " 503 修复…"}
+	got := evidenceWindow(text, highlightAnchor(h.Snippet))
+	if !strings.Contains(got, "atlas_route_epoch") || len([]rune(got)) > completeHistoryChars {
+		t.Fatalf("window lost evidence or exceeded bound: %q", got)
 	}
 }

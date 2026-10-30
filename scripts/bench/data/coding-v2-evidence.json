@@ -1,0 +1,2091 @@
+{
+  "version": "coding-v2-evidence",
+  "description": "Unchanged coding-v1 plus 20 authored evidence-integrity and hard-negative probes. Synthetic labels, not independent human evaluation.",
+  "projects": [
+    "webapp",
+    "billing",
+    "infra",
+    "notes"
+  ],
+  "documents": [
+    {
+      "id": "auth_timeout",
+      "project": "webapp",
+      "session": "s-auth_timeout",
+      "text": "已修复认证模块的超时问题：数据库连接池耗尽导致登录请求排队，调大连接池并加了超时控制。",
+      "evidence": "调大连接池并加了超时控制"
+    },
+    {
+      "id": "jwt_refresh",
+      "project": "webapp",
+      "session": "s-jwt_refresh",
+      "text": "重构认证模块，把 JWT 刷新令牌逻辑拆出去，TestRefresh 还在失败。",
+      "evidence": "TestRefresh 还在失败"
+    },
+    {
+      "id": "stripe_idem",
+      "project": "billing",
+      "session": "s-stripe_idem",
+      "text": "实现 Stripe webhook 的幂等处理，用 event_id 去重，重复回调不会重复扣款。",
+      "evidence": "用 event_id 去重"
+    },
+    {
+      "id": "payment_retry",
+      "project": "billing",
+      "session": "s-payment_retry",
+      "text": "Payment retries are now idempotent via a unique processed_events table.",
+      "evidence": "unique processed_events table"
+    },
+    {
+      "id": "migration",
+      "project": "webapp",
+      "session": "s-migration",
+      "text": "重构数据库迁移脚本，新增 users.last_login 列并回填历史数据。",
+      "evidence": "新增 users.last_login 列并回填历史数据"
+    },
+    {
+      "id": "canary",
+      "project": "notes",
+      "session": "s-canary",
+      "text": "灰度发布按 5%/25%/100% 推进；熔断后降级到只读缓存。",
+      "evidence": "5%/25%/100%"
+    },
+    {
+      "id": "k8s_rollout",
+      "project": "infra",
+      "session": "s-k8s_rollout",
+      "text": "kubectl rollout status hangs because the readiness probe points at the wrong port.",
+      "evidence": "readiness probe points at the wrong port"
+    },
+    {
+      "id": "react_state",
+      "project": "webapp",
+      "session": "s-react_state",
+      "text": "Moved the shopping cart state from Redux to React context and removed prop drilling.",
+      "evidence": "from Redux to React context"
+    },
+    {
+      "id": "goroutine_leak",
+      "project": "webapp",
+      "session": "s-goroutine_leak",
+      "text": "Worker pool leaked goroutines: the result channel was never closed when ctx was cancelled.",
+      "evidence": "result channel was never closed"
+    },
+    {
+      "id": "snapshot_test",
+      "project": "webapp",
+      "session": "s-snapshot_test",
+      "text": "go test ./ui failed: snapshot mismatch in the header component after the font change.",
+      "evidence": "snapshot mismatch in the header component"
+    },
+    {
+      "id": "fts_cn",
+      "project": "notes",
+      "session": "s-fts_cn",
+      "text": "SQLite FTS5 默认分词器不支持中文，换成 simple + jieba 后 幂等、去重 可以检索到。",
+      "evidence": "simple + jieba"
+    },
+    {
+      "id": "embed_bug",
+      "project": "notes",
+      "session": "s-embed_bug",
+      "text": "embeddings.cpp 的 GTE mean pooling 在 reshape 时断言失败，CLS 不受影响。",
+      "evidence": "GTE mean pooling"
+    },
+    {
+      "id": "docker_cache",
+      "project": "infra",
+      "session": "s-docker_cache",
+      "text": "Docker build cache was invalidated every time because COPY . . came before go mod download.",
+      "evidence": "COPY . . came before go mod download"
+    },
+    {
+      "id": "rate_limit",
+      "project": "webapp",
+      "session": "s-rate_limit",
+      "text": "给 API 加了基于令牌桶的限流，单用户每秒 20 次。",
+      "evidence": "单用户每秒 20 次"
+    },
+    {
+      "id": "deadlock",
+      "project": "webapp",
+      "session": "s-deadlock",
+      "text": "Fixed a deadlock: two goroutines acquired mu1 and mu2 in opposite order; now locks are always taken in id order.",
+      "evidence": "locks are always taken in id order"
+    },
+    {
+      "id": "mem_leak",
+      "project": "webapp",
+      "session": "s-mem_leak",
+      "text": "Node service RSS grew to 4GB overnight; the event listener was registered on every request and never removed.",
+      "evidence": "event listener was registered on every request"
+    },
+    {
+      "id": "race",
+      "project": "webapp",
+      "session": "s-race",
+      "text": "go test -race reported a data race on the cache map; wrapped it with sync.RWMutex.",
+      "evidence": "sync.RWMutex"
+    },
+    {
+      "id": "tls_expired",
+      "project": "infra",
+      "session": "s-tls_expired",
+      "text": "x509: certificate has expired or is not yet valid — renewed the Let's Encrypt cert and fixed the certbot cron.",
+      "evidence": "fixed the certbot cron"
+    },
+    {
+      "id": "timezone",
+      "project": "billing",
+      "session": "s-timezone",
+      "text": "订单统计少了一天：服务器用 UTC，报表按北京时间切日，改为统一用 Asia/Shanghai 计算日期边界。",
+      "evidence": "Asia/Shanghai"
+    },
+    {
+      "id": "cors",
+      "project": "webapp",
+      "session": "s-cors",
+      "text": "浏览器报 No 'Access-Control-Allow-Origin' header，后端补上 CORS 中间件并允许携带 cookie。",
+      "evidence": "允许携带 cookie"
+    },
+    {
+      "id": "serialization",
+      "project": "webapp",
+      "session": "s-serialization",
+      "text": "JSON marshal dropped the field because it was unexported (lowercase); renamed it and added a json tag.",
+      "evidence": "renamed it and added a json tag"
+    },
+    {
+      "id": "backoff",
+      "project": "webapp",
+      "session": "s-backoff",
+      "text": "调用第三方短信接口失败后改为指数退避重试，最多 5 次并加随机抖动。",
+      "evidence": "最多 5 次并加随机抖动"
+    },
+    {
+      "id": "cache_stampede",
+      "project": "webapp",
+      "session": "s-cache_stampede",
+      "text": "Hot key expiry caused thousands of requests to hit MySQL at once; added singleflight and jittered TTLs.",
+      "evidence": "singleflight and jittered TTLs"
+    },
+    {
+      "id": "dep_inject",
+      "project": "webapp",
+      "session": "s-dep_inject",
+      "text": "把全局单例改成构造函数注入，测试里可以替换成 mock 仓储。",
+      "evidence": "构造函数注入"
+    },
+    {
+      "id": "rollback",
+      "project": "infra",
+      "session": "s-rollback",
+      "text": "Deployment v2.3 broke checkout, so we rolled back to v2.2 with helm rollback and pinned the image tag.",
+      "evidence": "helm rollback"
+    },
+    {
+      "id": "oom_kill",
+      "project": "infra",
+      "session": "s-oom_kill",
+      "text": "容器被 OOMKilled，原因是 JVM 堆上限超过 cgroup 内存限制，加了 -XX:MaxRAMPercentage=75。",
+      "evidence": "-XX:MaxRAMPercentage=75"
+    },
+    {
+      "id": "slow_query",
+      "project": "billing",
+      "session": "s-slow_query",
+      "text": "Orders page took 8s; EXPLAIN showed a full table scan, added a composite index on (user_id, created_at).",
+      "evidence": "composite index on (user_id, created_at)"
+    },
+    {
+      "id": "flaky_test",
+      "project": "webapp",
+      "session": "s-flaky_test",
+      "text": "集成测试偶发失败：依赖测试执行顺序共享了全局状态，改成每个用例独立初始化数据库。",
+      "evidence": "每个用例独立初始化数据库"
+    },
+    {
+      "id": "ws_reconnect",
+      "project": "webapp",
+      "session": "s-ws_reconnect",
+      "text": "WebSocket 断线后前端没有重连，加了心跳检测和断线自动重连。",
+      "evidence": "心跳检测和断线自动重连"
+    },
+    {
+      "id": "i18n",
+      "project": "webapp",
+      "session": "s-i18n",
+      "text": "Added zh-CN and en locale files and replaced hard-coded strings with t() calls in the settings page.",
+      "evidence": "replaced hard-coded strings with t()"
+    },
+    {
+      "id": "ssh_key",
+      "project": "infra",
+      "session": "s-ssh_key",
+      "text": "CI 拉取私有仓库失败：deploy key 没有读权限，换成只读的 deploy key 并配置 known_hosts。",
+      "evidence": "只读的 deploy key"
+    },
+    {
+      "id": "pagination",
+      "project": "billing",
+      "session": "s-pagination",
+      "text": "List API returned duplicates across pages with OFFSET; switched to keyset pagination on (created_at, id).",
+      "evidence": "keyset pagination on (created_at, id)"
+    },
+    {
+      "id": "upload_limit",
+      "project": "infra",
+      "session": "s-upload_limit",
+      "text": "上传大文件返回 413，nginx client_max_body_size 默认 1m，调到 100m。",
+      "evidence": "调到 100m"
+    },
+    {
+      "id": "env_secret",
+      "project": "webapp",
+      "session": "s-env_secret",
+      "text": "Moved the database password out of config.yaml into an environment variable loaded from the secret manager.",
+      "evidence": "environment variable loaded from the secret manager"
+    },
+    {
+      "id": "log_rotate",
+      "project": "infra",
+      "session": "s-log_rotate",
+      "text": "磁盘被日志写满，配置 logrotate 每天轮转并保留 7 天。",
+      "evidence": "每天轮转并保留 7 天"
+    },
+    {
+      "id": "unicode",
+      "project": "webapp",
+      "session": "s-unicode",
+      "text": "用户名里有 emoji 时截断出错，按字节切导致乱码，改为按 rune 截断。",
+      "evidence": "按 rune 截断"
+    },
+    {
+      "id": "gc_pause",
+      "project": "webapp",
+      "session": "s-gc_pause",
+      "text": "P99 latency spikes every few minutes were GC pauses; reduced allocations in the hot path with sync.Pool.",
+      "evidence": "sync.Pool"
+    },
+    {
+      "id": "dns",
+      "project": "infra",
+      "session": "s-dns",
+      "text": "Pods could not resolve the external API intermittently; CoreDNS was rate limited, enabled NodeLocal DNSCache.",
+      "evidence": "NodeLocal DNSCache"
+    },
+    {
+      "id": "csv_bom",
+      "project": "notes",
+      "session": "s-csv_bom",
+      "text": "导出的 CSV 用 Excel 打开中文乱码，文件头加上 UTF-8 BOM 解决。",
+      "evidence": "UTF-8 BOM"
+    },
+    {
+      "id": "feature_flag",
+      "project": "notes",
+      "session": "s-feature_flag",
+      "text": "New search ranking is behind a feature flag so it can be enabled per tenant without a deploy.",
+      "evidence": "enabled per tenant without a deploy"
+    },
+    {
+      "id": "billing_auth",
+      "project": "billing",
+      "session": "s-billing_auth",
+      "text": "billing 登录超时由 OAuth 上游响应慢导致，改用异步令牌验证。",
+      "evidence": "异步令牌验证"
+    },
+    {
+      "id": "infra_auth",
+      "project": "infra",
+      "session": "s-infra_auth",
+      "text": "运维控制台登录慢是 LDAP 连接超时，切换备用 LDAP 节点。",
+      "evidence": "备用 LDAP"
+    },
+    {
+      "id": "webhook_webapp",
+      "project": "webapp",
+      "session": "s-webhook_webapp",
+      "text": "Webapp webhook 重复通知使用 notification_id 去重，不处理 Stripe 扣款。",
+      "evidence": "notification_id"
+    },
+    {
+      "id": "stripe_notes",
+      "project": "notes",
+      "session": "s-stripe_notes",
+      "text": "Stripe webhook 幂等处理的旧笔记建议 Redis SETNX，尚未在 billing 实施。",
+      "evidence": "Redis SETNX"
+    },
+    {
+      "id": "webapp_timezone",
+      "project": "webapp",
+      "session": "s-webapp_timezone",
+      "text": "Webapp 时间显示使用浏览器时区 Intl.DateTimeFormat，不调整订单统计边界。",
+      "evidence": "Intl.DateTimeFormat"
+    },
+    {
+      "id": "billing_cache",
+      "project": "billing",
+      "session": "s-billing_cache",
+      "text": "Billing 缓存击穿采用 Redis 分布式锁，不使用进程内 singleflight。",
+      "evidence": "Redis 分布式锁"
+    },
+    {
+      "id": "infra_pagination",
+      "project": "infra",
+      "session": "s-infra_pagination",
+      "text": "Infra 资产列表继续用 OFFSET 分页，重复记录通过资源 UUID 去重。",
+      "evidence": "资源 UUID"
+    },
+    {
+      "id": "billing_upload",
+      "project": "billing",
+      "session": "s-billing_upload",
+      "text": "Billing 账单上传返回 413，网关 upload_max_size 设为 20m。",
+      "evidence": "upload_max_size"
+    },
+    {
+      "id": "notes_dns",
+      "project": "notes",
+      "session": "s-notes_dns",
+      "text": "DNS 排查笔记：先检查 resolv.conf；这不是 infra 的 NodeLocal DNSCache 修复记录。",
+      "evidence": "resolv.conf"
+    },
+    {
+      "id": "billing_flag",
+      "project": "billing",
+      "session": "s-billing_flag",
+      "text": "Billing feature flag 使用 account_id 灰度，关闭 invoice_v2 即可回退旧账单。",
+      "evidence": "invoice_v2"
+    },
+    {
+      "id": "webapp_pool",
+      "project": "webapp",
+      "session": "s-webapp_pool",
+      "text": "Webapp 数据库连接池压测记录：max_open_conns=64，峰值 200 RPS，尚未调整认证逻辑。",
+      "evidence": "max_open_conns=64"
+    },
+    {
+      "id": "infra_gc",
+      "project": "infra",
+      "session": "s-infra_gc",
+      "text": "Infra Go 服务 GC 延迟改用 GOGC=150，尚未引入 sync.Pool。",
+      "evidence": "GOGC=150"
+    },
+    {
+      "id": "jwt_decision",
+      "project": "webapp",
+      "session": "s-jwt_decision",
+      "text": "JWT refresh 重构决策：刷新令牌必须单次使用，轮换成功后旧令牌立即失效。",
+      "evidence": "旧令牌立即失效"
+    },
+    {
+      "id": "jwt_failure",
+      "project": "webapp",
+      "session": "s-jwt_failure",
+      "text": "JWT refresh 重构遗留失败：TestRefreshReuse 仍失败，需要在事务中原子更新 used_at。",
+      "evidence": "原子更新 used_at"
+    },
+    {
+      "id": "release_gate",
+      "project": "infra",
+      "session": "s-release_gate",
+      "text": "Checkout release gate：helm 回滚完成后必须执行 smoke_checkout.sh，验收订单创建成功。",
+      "evidence": "smoke_checkout.sh"
+    },
+    {
+      "id": "stripe_recovery",
+      "project": "billing",
+      "session": "s-stripe_recovery",
+      "text": "Stripe webhook 恢复步骤：从 dead_letter_events 重放失败回调，每次重放保留原 event_id。",
+      "evidence": "dead_letter_events"
+    },
+    {
+      "id": "migration_validation",
+      "project": "webapp",
+      "session": "s-migration_validation",
+      "text": "users.last_login 迁移验收：运行 validate_last_login.sql，确认历史用户没有 NULL。",
+      "evidence": "validate_last_login.sql"
+    },
+    {
+      "id": "dns_validation",
+      "project": "infra",
+      "session": "s-dns_validation",
+      "text": "NodeLocal DNSCache 修复后用 dns_probe.sh 连续探测十分钟，DNS 失败率必须低于千分之一。",
+      "evidence": "dns_probe.sh"
+    },
+    {
+      "id": "cache_validation",
+      "project": "webapp",
+      "session": "s-cache_validation",
+      "text": "singleflight 缓存击穿修复验收：运行 hot_key_load.js，热点过期时 MySQL QPS 不超过 100。",
+      "evidence": "hot_key_load.js"
+    },
+    {
+      "id": "upload_validation",
+      "project": "infra",
+      "session": "s-upload_validation",
+      "text": "nginx 大文件上传修复验收：用 upload_90mb.bin 测试，返回 201 且 SHA256 一致。",
+      "evidence": "upload_90mb.bin"
+    },
+    {
+      "id": "orion-decision",
+      "project": "webapp",
+      "session": "s-orion",
+      "text": "Orion 队列重复消费修复：提交消费偏移前先写入 inbox_dedup，事务成功后再提交 offset。",
+      "evidence": "inbox_dedup"
+    },
+    {
+      "id": "orion-validation",
+      "project": "webapp",
+      "session": "s-orion",
+      "text": "Orion 队列重复消费验收：运行 replay_orion_queue.py，断电重放后每条消息只产生一次业务效果。",
+      "evidence": "replay_orion_queue.py"
+    },
+    {
+      "id": "lyra-decision",
+      "project": "billing",
+      "session": "s-lyra",
+      "text": "Lyra 对账差额决策：退款汇率采用 refund_at 的日终价格，禁止使用支付当天的汇率。",
+      "evidence": "refund_at"
+    },
+    {
+      "id": "lyra-validation",
+      "project": "billing",
+      "session": "s-lyra",
+      "text": "Lyra 对账差额验收：运行 verify_lyra_refund.sql，对比退款与冲正的金额，差额必须为零。",
+      "evidence": "verify_lyra_refund.sql"
+    },
+    {
+      "id": "vela-decision",
+      "project": "infra",
+      "session": "s-vela",
+      "text": "Vela 证书热更新修复：每次轮换创建新的 tls.Config 快照，通过 atomic.Pointer 原子替换。",
+      "evidence": "atomic.Pointer"
+    },
+    {
+      "id": "vela-validation",
+      "project": "infra",
+      "session": "s-vela",
+      "text": "Vela 证书热更新验收：运行 probe_vela_tls.sh，长连接持续握手时证书序列号应切到新版本。",
+      "evidence": "probe_vela_tls.sh"
+    },
+    {
+      "id": "pavo-decision",
+      "project": "notes",
+      "session": "s-pavo",
+      "text": "Pavo 文档归档规则：文档用 SHA256 内容摘要去重，标题相同但内容不同的版本必须保留。",
+      "evidence": "SHA256 内容摘要去重"
+    },
+    {
+      "id": "pavo-validation",
+      "project": "notes",
+      "session": "s-pavo",
+      "text": "Pavo 文档归档验收：执行 check_pavo_archive.py，确认双版本均可读取且来源链接完整。",
+      "evidence": "check_pavo_archive.py"
+    },
+    {
+      "id": "atlas-long",
+      "project": "webapp",
+      "session": "s-atlas-long",
+      "text": "这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。\nAtlas 网关 503 修复记录：排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。最终采用 atlas_route_epoch 检查拒绝旧路由快照，验证后问题不再出现。\n后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。",
+      "evidence": "atlas_route_epoch"
+    },
+    {
+      "id": "cygnus-long",
+      "project": "infra",
+      "session": "s-cygnus-long",
+      "text": "这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。\nCygnus DNS 超时修复记录：排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。最终采用 cygnus_resolver_guard 避免复用失效连接，验证后问题不再出现。\n后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。",
+      "evidence": "cygnus_resolver_guard"
+    },
+    {
+      "id": "draco-long",
+      "project": "billing",
+      "session": "s-draco-long",
+      "text": "这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。\nDraco 导出重复记录修复记录：排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。最终采用 draco_export_cursor 作为续传边界，验证后问题不再出现。\n后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。",
+      "evidence": "draco_export_cursor"
+    },
+    {
+      "id": "hydra-long",
+      "project": "notes",
+      "session": "s-hydra-long",
+      "text": "这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。这份历史记录包含例行巡检与环境说明，以下背景不代表最终处理结论。\nHydra 索引乱码修复记录：排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。排查时核对了多个版本的行为，最初的猜测并未成立，需要逐一比对现场信息。最终采用 hydra_unicode_boundary 保持字符边界完整，验证后问题不再出现。\n后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。后续附录列出常规运维事项，保留供审计使用，不改变前述最终方案。",
+      "evidence": "hydra_unicode_boundary"
+    }
+  ],
+  "questions": [
+    {
+      "id": "q001",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "登录很慢是什么原因",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "auth_timeout"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q002",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "why are sign-ins slow",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "auth_timeout"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q003",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "怎么避免 webhook 重复扣款",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "stripe_idem",
+          "payment_retry"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q004",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "how did we make payments safe to retry",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "payment_retry",
+          "stripe_idem"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q005",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "令牌过期的测试",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "jwt_refresh"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q006",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "数据库加字段并回填",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "migration"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q007",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "deployment is stuck and never finishes",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "k8s_rollout"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q008",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "协程泄漏",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "goroutine_leak"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q009",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "中文搜索不到",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "fts_cn"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q010",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "向量模型崩溃",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "embed_bug"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q011",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "镜像构建很慢每次都重新下载依赖",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "docker_cache"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q012",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "流量控制 每秒请求数",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "rate_limit"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q013",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "逐步放量上线",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "canary"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q014",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "前端状态管理",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "react_state"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q015",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "UI 快照测试失败",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "snapshot_test"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q016",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "死锁怎么解决的",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "deadlock"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q017",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "内存泄漏 内存一直涨",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "mem_leak"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q018",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "并发读写 map 竞态",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "race"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q019",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "证书过期",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "tls_expired"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q020",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "timezone bug in daily report",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "timezone"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q021",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "CORS error from the browser",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "cors"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q022",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "字段序列化后丢失",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "serialization"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q023",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "exponential backoff for SMS provider",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "backoff"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q024",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "缓存击穿 数据库被打爆",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "cache_stampede"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q025",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "dependency injection for testing",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "dep_inject"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q026",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "版本回滚",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "rollback"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q027",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "container killed out of memory",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "oom_kill"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q028",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "慢查询加索引",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "slow_query"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q029",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "flaky integration tests",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "flaky_test"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q030",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "websocket reconnect",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "ws_reconnect"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q031",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "国际化 多语言",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "i18n"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q032",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "CI 克隆私有仓库权限",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "ssh_key"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q033",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "分页结果重复",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "pagination"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q034",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "file upload too large error",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "upload_limit"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q035",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "密码不要写在配置文件里",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "env_secret"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q036",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "disk full because of logs",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "log_rotate"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q037",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "emoji 截断乱码",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "unicode"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q038",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "垃圾回收导致延迟抖动",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "gc_pause"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q039",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "域名解析偶尔失败",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "dns"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q040",
+      "split": "dev",
+      "category": "mixed_retrieval",
+      "query": "excel 打开 csv 中文乱码",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "csv_bom"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q041",
+      "split": "test",
+      "category": "mixed_retrieval",
+      "query": "灰度开关 按租户开启",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "feature_flag"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q042",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "支付重复回调要怎么去重",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "stripe_idem"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q043",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "Why was the daily order count off by one day?",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "timezone"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q044",
+      "split": "dev",
+      "category": "paraphrase",
+      "query": "How was the authentication timeout fixed?",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "auth_timeout"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q045",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "购物车 Redux 改成了什么",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "react_state"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q046",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "为什么容器里的 Java 进程被杀掉",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "oom_kill"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q047",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "What caused stale goroutines after cancellation?",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "goroutine_leak"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q048",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "如何解决热点 key 失效打满数据库",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "cache_stampede"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q049",
+      "split": "test",
+      "category": "paraphrase",
+      "query": "SSL 证书无效之后怎么处理",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "tls_expired"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q050",
+      "split": "dev",
+      "category": "paraphrase",
+      "query": "How did we stop duplicate rows between list pages?",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "pagination"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q051",
+      "split": "dev",
+      "category": "paraphrase",
+      "query": "浏览器不允许跨域携带 cookie",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "cors"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q052",
+      "split": "dev",
+      "category": "paraphrase",
+      "query": "What fixed Chinese text in spreadsheet exports?",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "csv_bom"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q053",
+      "split": "dev",
+      "category": "scope_collision",
+      "query": "登录超时",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "billing_auth"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q054",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "登录超时",
+      "project": "infra",
+      "scope": "selected_projects",
+      "selected": [
+        "infra"
+      ],
+      "evidence_groups": [
+        [
+          "infra_auth"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q055",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "webhook 重复通知",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "webhook_webapp"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q056",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "Stripe webhook 幂等处理",
+      "project": "notes",
+      "scope": "selected_projects",
+      "selected": [
+        "notes"
+      ],
+      "evidence_groups": [
+        [
+          "stripe_notes"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q057",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "时间显示时区",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "webapp_timezone"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q058",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "缓存击穿",
+      "project": "billing",
+      "scope": "selected_projects",
+      "selected": [
+        "billing"
+      ],
+      "evidence_groups": [
+        [
+          "billing_cache"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q059",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "列表分页重复",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "infra_pagination"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q060",
+      "split": "dev",
+      "category": "scope_collision",
+      "query": "上传返回 413",
+      "project": "billing",
+      "scope": "selected_projects",
+      "selected": [
+        "billing"
+      ],
+      "evidence_groups": [
+        [
+          "billing_upload"
+        ]
+      ],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q061",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "DNS resolv.conf",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "notes_dns"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q062",
+      "split": "dev",
+      "category": "scope_collision",
+      "query": "feature flag invoice_v2",
+      "project": "billing",
+      "scope": "selected_projects",
+      "selected": [
+        "billing"
+      ],
+      "evidence_groups": [
+        [
+          "billing_flag"
+        ]
+      ],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q063",
+      "split": "test",
+      "category": "scope_collision",
+      "query": "GC 延迟 GOGC",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "infra_gc"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q064",
+      "split": "test",
+      "category": "cross_project",
+      "query": "webhook 幂等 Stripe",
+      "project": "billing",
+      "scope": "all_projects",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "stripe_idem",
+          "payment_retry"
+        ],
+        [
+          "stripe_notes"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q065",
+      "split": "test",
+      "category": "multi_evidence",
+      "query": "JWT refresh 重构的决策和遗留失败是什么",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "jwt_decision"
+        ],
+        [
+          "jwt_failure"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q066",
+      "split": "test",
+      "category": "multi_evidence",
+      "query": "Checkout 回滚到哪个版本，回滚后怎么验收",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "rollback"
+        ],
+        [
+          "release_gate"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q067",
+      "split": "test",
+      "category": "multi_evidence",
+      "query": "Stripe webhook 幂等处理与失败回调恢复步骤",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "stripe_idem",
+          "payment_retry"
+        ],
+        [
+          "stripe_recovery"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q068",
+      "split": "dev",
+      "category": "multi_evidence",
+      "query": "users.last_login 迁移做了什么，怎么验收",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "migration"
+        ],
+        [
+          "migration_validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q069",
+      "split": "test",
+      "category": "multi_evidence",
+      "query": "DNS NodeLocal 修复原因和验收脚本",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "dns"
+        ],
+        [
+          "dns_validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q070",
+      "split": "test",
+      "category": "multi_evidence",
+      "query": "singleflight 热点缓存修复及压测验收",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "cache_stampede"
+        ],
+        [
+          "cache_validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q071",
+      "split": "dev",
+      "category": "multi_evidence",
+      "query": "nginx 上传限制修复与验收文件",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "upload_limit"
+        ],
+        [
+          "upload_validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q072",
+      "split": "test",
+      "category": "budget",
+      "query": "JWT refresh 重构的决策和遗留失败是什么",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "jwt_decision"
+        ],
+        [
+          "jwt_failure"
+        ]
+      ],
+      "budget": 700,
+      "language": "mixed"
+    },
+    {
+      "id": "q073",
+      "split": "test",
+      "category": "negative",
+      "query": "写一首关于秋天和落叶的诗",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q074",
+      "split": "dev",
+      "category": "negative",
+      "query": "今天天气怎么样需要带伞吗",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q075",
+      "split": "test",
+      "category": "negative",
+      "query": "explain quantum entanglement simply",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q076",
+      "split": "test",
+      "category": "negative",
+      "query": "推荐几部好看的电影给我",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q077",
+      "split": "test",
+      "category": "negative",
+      "query": "how to bake sourdough bread",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "en"
+    },
+    {
+      "id": "q078",
+      "split": "test",
+      "category": "negative",
+      "query": "billing 怎么用 notification_id 去重",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q079",
+      "split": "dev",
+      "category": "negative",
+      "query": "infra 的 Stripe 扣款幂等实现",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q080",
+      "split": "test",
+      "category": "negative",
+      "query": "寻找这个全新仓库的数据库迁移记录",
+      "project": "unknown",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "zh"
+    },
+    {
+      "id": "q081",
+      "split": "dev",
+      "category": "same_session_evidence",
+      "query": "Orion 队列重复消费的处理方案和验收方式是什么",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "orion-decision"
+        ],
+        [
+          "orion-validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q082",
+      "split": "test",
+      "category": "same_session_evidence",
+      "query": "Lyra 对账差额的处理方案和验收方式是什么",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "lyra-decision"
+        ],
+        [
+          "lyra-validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q083",
+      "split": "dev",
+      "category": "same_session_evidence",
+      "query": "Vela 证书热更新的处理方案和验收方式是什么",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "vela-decision"
+        ],
+        [
+          "vela-validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q084",
+      "split": "test",
+      "category": "same_session_evidence",
+      "query": "Pavo 文档归档的处理方案和验收方式是什么",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "pavo-decision"
+        ],
+        [
+          "pavo-validation"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q085",
+      "split": "dev",
+      "category": "long_source_evidence",
+      "query": "Atlas 网关 503 修复的最终处理是什么",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "atlas-long"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q086",
+      "split": "test",
+      "category": "long_source_evidence",
+      "query": "Cygnus DNS 超时修复的最终处理是什么",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "cygnus-long"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q087",
+      "split": "dev",
+      "category": "long_source_evidence",
+      "query": "Draco 导出重复记录修复的最终处理是什么",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "draco-long"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q088",
+      "split": "test",
+      "category": "long_source_evidence",
+      "query": "Hydra 索引乱码修复的最终处理是什么",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [
+        [
+          "hydra-long"
+        ]
+      ],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q089",
+      "split": "dev",
+      "category": "hard_negative",
+      "query": "Orion 队列重复消费的修复是否使用 Redis SETNX",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q090",
+      "split": "test",
+      "category": "hard_negative",
+      "query": "Lyra 对账差额使用哪个 UTC 时区配置",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q091",
+      "split": "dev",
+      "category": "hard_negative",
+      "query": "Vela 证书热更新的客户审批人是谁",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q092",
+      "split": "test",
+      "category": "hard_negative",
+      "query": "Pavo 文档归档的 Elasticsearch 集群地址",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q093",
+      "split": "dev",
+      "category": "hard_negative",
+      "query": "Atlas 网关 503 修复记录的采购预算多少",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q094",
+      "split": "test",
+      "category": "hard_negative",
+      "query": "Cygnus DNS 超时修复中 PostgreSQL 索引名称",
+      "project": "infra",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q095",
+      "split": "dev",
+      "category": "hard_negative",
+      "query": "Draco 导出重复记录修复的法务审批工单",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q096",
+      "split": "test",
+      "category": "hard_negative",
+      "query": "Hydra 索引乱码修复使用哪个 Stripe 退款账户",
+      "project": "notes",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q097",
+      "split": "dev",
+      "category": "hard_negative",
+      "query": "Orion 队列重复消费的处理方案",
+      "project": "billing",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q098",
+      "split": "test",
+      "category": "hard_negative",
+      "query": "Vela 证书热更新的处理方案",
+      "project": "webapp",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q099",
+      "split": "dev",
+      "category": "hard_negative",
+      "query": "不存在的 Phoenix 超时修复脚本叫什么",
+      "project": "unknown",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    },
+    {
+      "id": "q100",
+      "split": "test",
+      "category": "hard_negative",
+      "query": "不存在的 Aquila 归档验收规则是什么",
+      "project": "unknown",
+      "scope": "current_project",
+      "selected": [],
+      "evidence_groups": [],
+      "budget": 0,
+      "language": "mixed"
+    }
+  ]
+}

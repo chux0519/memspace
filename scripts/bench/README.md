@@ -8,6 +8,12 @@ informed existing embedding thresholds. The `test` partition is therefore not a
 new, unbiased model or threshold evaluation set. No thresholds are tuned by this
 runner.
 
+`data/coding-v2-evidence.json` extends v1 to **100 questions**, preserving every
+v1 question and answer. It adds shared-session complementary records, long-source
+evidence and missing-attribute/scope probes. See [EVIDENCE.md](EVIDENCE.md) for the
+controlled comparison, token tradeoff and limitations of its negative labels.
+Select it with `-corpus scripts/bench/data/coding-v2-evidence.json`.
+
 The fixed questions comprise 41 original queries, 11 paraphrases, 11 single-project
 collision queries, one all-project query, seven multi-evidence queries, one budget
 variant, and eight negative queries. Labels specify AND across `evidence_groups`
@@ -57,10 +63,12 @@ included in the manifest; no fake embedding model is used for reported quality.
 
 ## What runs
 
-1. Each corpus document becomes a separate session with an indexed generic user
-   prompt (`请记录本次编码任务的进展`) and its indexed answer event. All sessions are
-   initially ended, with events anchored one hour before the run. This creates
-   120 search documents for the 60 labeled answer records. The harness is not
+1. Each corpus document becomes an indexed generic user prompt
+   (`请记录本次编码任务的进展`) and an indexed answer event. V1 uses separate sessions;
+   v2 also permits multiple records in one session within the same project.
+   All sessions are initially ended, with events anchored one hour before the run.
+   This creates 120 search documents for v1's 60 labeled answers, or 144 for v2's 72.
+   The harness is not
    measuring event ingestion or summary generation performance.
 2. Search calls production `search.Search` in keyword, semantic and hybrid modes,
    with `limit=5`. The unit is a **document**, not a deduplicated session.

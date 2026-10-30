@@ -250,13 +250,13 @@ func validate(c corpus) error {
 		projects[p] = true
 	}
 	docs := map[string]document{}
-	sessions := map[string]bool{}
+	sessions := map[string]string{}
 	for _, d := range c.Documents {
-		if d.ID == "" || d.Session == "" || docs[d.ID].ID != "" || sessions[d.Session] || !projects[d.Project] || d.Evidence == "" || !strings.Contains(d.Text, d.Evidence) {
+		if d.ID == "" || d.Session == "" || docs[d.ID].ID != "" || (sessions[d.Session] != "" && sessions[d.Session] != d.Project) || !projects[d.Project] || d.Evidence == "" || !strings.Contains(d.Text, d.Evidence) {
 			return fmt.Errorf("invalid document %q", d.ID)
 		}
 		docs[d.ID] = d
-		sessions[d.Session] = true
+		sessions[d.Session] = d.Project
 	}
 	ids := map[string]bool{}
 	// Related evidence labels may not occur in both dev and test.
@@ -342,7 +342,10 @@ func seed(ctx context.Context, d *sql.DB, c corpus, work string) (map[string]doc
 		if i%2 == 1 {
 			agent = "claude-code"
 		}
-		if err = run(`INSERT INTO sessions(session_id,project_id,device_id,agent_type,native_session_id,started_at,status) VALUES (?,?,?,?,?,?,'ended')`, doc.Session, doc.Project, dev, agent, doc.Session, now); err != nil {
+		if err = run(`INSERT INTO sessions(session_id,project_id,device_id,agent_type,native_session_id,started_at,status) VALUES (?,?,?,?,?,?,'ended') ON CONFLICT(session_id) DO NOTHING`, doc.Session, doc.Project, dev, agent, doc.Session, now); err != nil {
+			return nil, nil, err
+		}
+		if err = tx.QueryRowContext(ctx, `SELECT agent_type FROM sessions WHERE session_id=?`, doc.Session).Scan(&agent); err != nil {
 			return nil, nil, err
 		}
 		payload, _ := json.Marshal(map[string]string{"last_assistant_message": doc.Text})
@@ -413,7 +416,7 @@ func run() error {
 	corpusHash := sha256.Sum256(raw)
 	sourceCopies := map[string][]byte{}
 	sourceHashes := map[string]string{}
-	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
+	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return e

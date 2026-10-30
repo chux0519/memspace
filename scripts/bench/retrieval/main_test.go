@@ -110,3 +110,39 @@ func TestCorpusAndProductionPath(t *testing.T) {
 	}
 
 }
+
+func TestEvidenceCorpusPreservesV1AndAllowsScopedSharedSessions(t *testing.T) {
+	read := func(path string) corpus {
+		b, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		var c corpus
+		if e = json.Unmarshal(b, &c); e != nil {
+			t.Fatal(e)
+		}
+		return c
+	}
+	a, b := read("../data/coding-v1.json"), read("../data/coding-v2-evidence.json")
+	if err := validate(b); err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range a.Questions {
+		x, _ := json.Marshal(q)
+		y, _ := json.Marshal(b.Questions[i])
+		if string(x) != string(y) {
+			t.Fatalf("legacy question %s changed", q.ID)
+		}
+	}
+	for i, d := range a.Documents {
+		if b.Documents[i] != d {
+			t.Fatalf("legacy document %s changed", d.ID)
+		}
+	}
+	// Same-session facts may share a project, but can never merge projects.
+	b.Documents[len(b.Documents)-1].Session = b.Documents[len(b.Documents)-2].Session
+	b.Documents[len(b.Documents)-1].Project = "webapp"
+	if validate(b) == nil {
+		t.Fatal("cross-project session merge accepted")
+	}
+}

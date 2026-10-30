@@ -267,7 +267,10 @@ type SearchResult struct {
 	OccurredAt  time.Time `json:"occurred_at"`
 	Title       string    `json:"title,omitempty"`
 	Snippet     string    `json:"snippet"`
-	Score       float64   `json:"score"`
+	// EvidenceText carries the matching source chunk inside the server only.
+	// Search previews and public search responses retain their existing size.
+	EvidenceText string  `json:"-"`
+	Score        float64 `json:"score"`
 	// Match is "all" when every query term matched, "any" for partial matches.
 	Match string `json:"match"`
 	// MatchedTerms of TotalTerms query terms occur in the document.

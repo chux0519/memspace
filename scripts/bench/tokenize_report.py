@@ -91,7 +91,7 @@ def main():
         result["tiktoken_version"] = importlib.metadata.version("tiktoken")
         (args.run / "tokenized-receipts.jsonl").write_text("".join(json.dumps(r,ensure_ascii=False)+"\n" for r in rows))
         (args.run / "summary.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
-    lines = ["# MemSpace coding-v1 baseline", "", ("QUALITY ONLY: frozen real query vectors; latency excludes query embedding and is not comparable to live runs.\n\n" if frozen else "") + "Synthetic authored corpus; warm sequential loopback runs. Repeated samples do not enlarge the question set.", "", f"Token encoding: {args.encoding or 'not measured'}.", "", "| Layer / mode | Questions | Any hit | All evidence | Evidence recall | p50 ms | p95 ms | Tokens p50 / p95 |", "|---|---:|---:|---:|---:|---:|---:|---:|"]
+    lines = [f"# MemSpace {manifest['corpus_version']} baseline", "", ("QUALITY ONLY: frozen real query vectors; latency excludes query embedding and is not comparable to live runs.\n\n" if frozen else "") + "Synthetic authored corpus; warm sequential loopback runs. Repeated samples do not enlarge the question set.", "", f"Token encoding: {args.encoding or 'not measured'}.", "", "| Layer / mode | Questions | Any hit | All evidence | Evidence recall | p50 ms | p95 ms | Tokens p50 / p95 |", "|---|---:|---:|---:|---:|---:|---:|---:|"]
     pct = lambda x: "—" if x is None else f"{x:.1%}"
     for key, s in result["groups"].items():
         if not key.endswith("/all"):

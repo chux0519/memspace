@@ -236,6 +236,7 @@ func fuse(kw, sem []model.SearchResult, limit int) []model.SearchResult {
 			} else if r.Similarity > 0 {
 				h := byID[r.DocID]
 				h.Similarity = r.Similarity
+				h.EvidenceText = r.EvidenceText
 				byID[r.DocID] = h
 			}
 			score[r.DocID] += 1.0 / float64(rrfK+i+1)
@@ -347,6 +348,7 @@ func semanticResults(ctx context.Context, db *sql.DB, owner string, req model.Se
 			continue // filtered out
 		}
 		r.Match, r.Similarity, r.Score = "semantic", h.Similarity, h.Similarity
+		r.EvidenceText = h.Text
 		r.Snippet = redact.Truncate(strings.Join(strings.Fields(h.Text), " "), 240)
 		out = append(out, r)
 		if len(out) >= limit {
