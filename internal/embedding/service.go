@@ -189,7 +189,7 @@ func (s *Service) embedDocs(ctx context.Context, space *Space, docs []PendingDoc
 	for start := 0; start < len(texts); start += s.cfg.BatchSize {
 		end := min(start+s.cfg.BatchSize, len(texts))
 		cctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-		vecs, err := s.client.Embed(cctx, texts[start:end])
+		vecs, err := s.client.EmbedBackground(cctx, texts[start:end])
 		cancel()
 		if err != nil {
 			return err
@@ -221,6 +221,9 @@ func (s *Service) Similar(ctx context.Context, query string, projectIDs []string
 	defer cancel()
 	vecs, err := s.client.Embed(qctx, []string{info.QueryPrefix + query})
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, nil
+		} // caller cancellation is not a service outage
 		// A single slow answer (e.g. queued behind a background batch) just
 		// skips semantic results for this query; repeated failures mean the
 		// service is down, so stop waiting on it for a while.

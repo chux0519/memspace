@@ -16,10 +16,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/chux0519/memspace/internal/model"
+	"github.com/chux0519/memspace/internal/prompt"
 	"github.com/chux0519/memspace/internal/redact"
 	"github.com/chux0519/memspace/internal/search"
 	"github.com/chux0519/memspace/internal/sessions"
@@ -147,7 +147,7 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 		if budget == 0 {
 			budget = PromptBudget
 		}
-		if !substantive(req.Query) {
+		if !prompt.ShouldRecall(req.Query) {
 			return pack, nil
 		}
 		if continuationRE.MatchString(req.Query) {
@@ -176,18 +176,6 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 	budget = min(budget, HardLimit)
 	render(pack, sections, budget)
 	return pack, nil
-}
-
-// substantive skips prompts too short to search on ("ok", "继续"). CJK
-// characters count individually.
-func substantive(q string) bool {
-	n := 0
-	for _, r := range q {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			n++
-		}
-	}
-	return n >= 6
 }
 
 func currentSessionID(ctx context.Context, db *sql.DB, deviceID, agent, native string) string {
@@ -329,34 +317,21 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 		return nil, err
 	}
 	var out []section
-	seenSession := map[string]bool{}
-	for _, h := range resp.Results {
-		if current != "" && h.SessionID == current {
-			continue // already in the agent's own context
+	inject, _ := search.MinSimilarities()
+	for _, h := range historyCandidates(resp.Results, current, inject) {
+		content, err := historyContent(ctx, db, owner, projectID, h)
+		if err != nil {
+			return nil, err
 		}
-		switch h.Match {
-		case "semantic": // found by meaning only: must be close (the
-			// threshold is calibrated per embedding model)
-			if inject, _ := search.MinSimilarities(); h.Similarity < inject {
-				continue
-			}
-		case "any": // partial keyword match: must cover half the query
-			if h.MatchedTerms*2 < h.TotalTerms {
-				continue
-			}
+		if content == "" {
+			continue
 		}
-		// One item per session: the best-ranked one (often its summary).
-		if h.SessionID != "" {
-			if seenSession[h.SessionID] {
-				continue
-			}
-			seenSession[h.SessionID] = true
-		}
+
 		text := fmt.Sprintf("- [%s] %s · %s@%s: ", h.Kind, h.OccurredAt.Local().Format("2006-01-02 15:04"), h.AgentType, h.DeviceName)
 		if h.Title != "" {
 			text += oneLine(h.Title) + " — "
 		}
-		text += oneLine(redact.Truncate(h.Snippet, 300)) + fmt.Sprintf(" (ref %s)\n", h.RefID)
+		text += content + fmt.Sprintf(" (ref %s)\n", h.RefID)
 		out = append(out, section{
 			item: Item{Key: fmt.Sprintf("doc:%d", h.DocID), Kind: "history", Ref: h.RefID, ProjectID: h.ProjectID,
 				Device: h.DeviceName, Agent: h.AgentType, At: h.OccurredAt},

@@ -255,3 +255,24 @@ func TestEmptySessionsAreIgnored(t *testing.T) {
 		t.Errorf("IncludeEmpty listed %d sessions, want 2", len(all))
 	}
 }
+
+func TestPromptKeepsShortSourceEvidenceBeyondSearchPreview(t *testing.T) {
+	f := setup(t)
+	f.session("answer", "linux-box", "codex", "ended")
+	f.event("answer", time.Hour, "user.prompt", map[string]any{"prompt": "排查协程泄漏"})
+	// More than the display snippet and 300 bytes, but below the per-source
+	// character bound. The identifying term is at the start, the fix at the end.
+	body := "协程泄漏排查：" + strings.Repeat("记录排查过程。", 35) + "最终修复是在取消时关闭结果通道。"
+	f.event("answer", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": body})
+	p := f.build("linux-box", contextpack.Request{Mode: contextpack.ModePrompt, Project: webapp, Query: "协程泄漏"})
+	if !strings.Contains(p.Text, "最终修复是在取消时关闭结果通道") {
+		t.Fatalf("short query or complete source lost:\n%s", p.Text)
+	}
+	if utf8.RuneCountInString(p.Text) > contextpack.PromptBudget {
+		t.Fatal("over budget")
+	}
+	// A scoped source body must not cross project boundaries during hydration.
+	if p := f.build("linux-box", contextpack.Request{Mode: contextpack.ModePrompt, Project: search.ProjectRef{GitIdentity: "github.com/me/other"}, Query: "协程泄漏"}); p.Text != "" {
+		t.Fatal("other project received source")
+	}
+}

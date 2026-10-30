@@ -200,3 +200,15 @@ func TestStartWithFirstPrompt(t *testing.T) {
 		t.Errorf("unwritable markers: %d calls, mode %s", f.calls.Load(), f.last.Mode)
 	}
 }
+
+func TestCompactChineseTechnicalQueryReachesServer(t *testing.T) {
+	f := newFake(t)
+	f.reply = contextpack.Pack{Text: "关闭结果通道修复协程泄漏", Items: []contextpack.Item{{Key: "doc:short"}}}
+	c := cfg(t, f)
+	if got := context_(t, Run(context.Background(), c, input("UserPromptSubmit", map[string]any{"prompt": "协程泄漏"}))); got != f.reply.Text {
+		t.Fatalf("short technical query lost: %q", got)
+	}
+	if f.calls.Load() != 1 || f.last.Query != "协程泄漏" {
+		t.Fatalf("wrong call: %+v", f.last)
+	}
+}

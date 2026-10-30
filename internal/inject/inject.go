@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/chux0519/memspace/internal/contextpack"
 	"github.com/chux0519/memspace/internal/project"
@@ -155,7 +154,7 @@ func promptRecall(ctx context.Context, cfg Config, in Input) string {
 		return ""
 	}
 	query := prompt.OwnWords(in.Prompt)
-	if !substantive(query) {
+	if !prompt.ShouldRecall(query) {
 		return "" // skip the network call for "ok", "继续" and the like
 	}
 	pref, _ := ref(in.Cwd)
@@ -194,16 +193,6 @@ func firstPrompt(cfg Config, in Input) bool {
 	}
 	f.Close()
 	return true
-}
-
-func substantive(q string) bool {
-	n := 0
-	for _, r := range q {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			n++
-		}
-	}
-	return n >= 6
 }
 
 func fetch(ctx context.Context, cfg Config, timeout time.Duration, req contextpack.Request) (*contextpack.Pack, error) {

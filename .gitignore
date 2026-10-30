@@ -7,3 +7,7 @@ config.toml
 
 # Local agent tooling (third-party skills), not part of the product.
 /.claude/
+
+# Benchmark receipts may contain private history; publish reviewed summaries only.
+/scripts/bench/runs/
+/scripts/bench/__pycache__/

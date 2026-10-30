@@ -56,12 +56,27 @@ func (c *Client) http() *http.Client {
 
 // Embed returns one vector per input, in order.
 func (c *Client) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
+	return c.embed(ctx, inputs, false)
+}
+
+// EmbedBackground marks index-building work as lower priority. Providers that
+// do not implement the optional header still receive a standard embeddings body.
+func (c *Client) EmbedBackground(ctx context.Context, inputs []string) ([][]float32, error) {
+	return c.embed(ctx, inputs, true)
+}
+
+func (c *Client) embed(ctx context.Context, inputs []string, background bool) ([][]float32, error) {
 	body, _ := json.Marshal(embedRequest{Input: inputs, Model: c.Model, Dimensions: c.Dimensions})
 	req, err := http.NewRequestWithContext(ctx, "POST", c.URL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if background {
+		req.Header.Set("X-Embedding-Priority", "background")
+	} else {
+		req.Header.Set("X-Embedding-Priority", "query")
+	}
 	if c.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	}
