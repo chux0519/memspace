@@ -191,7 +191,9 @@ func runCmd(args []string) error {
 	manifest["production_source_sha256"] = sourceSHA()
 	manifest["db_counts"] = benchutil.Counts(ctx, d)
 	manifest["mode"] = *mode
-	if infoResp, err := http.Get(strings.TrimSuffix(*url, "/v1/embeddings") + "/info"); err == nil {
+	infoClient := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
+	defer infoClient.CloseIdleConnections()
+	if infoResp, err := infoClient.Get(strings.TrimSuffix(*url, "/v1/embeddings") + "/info"); err == nil {
 		var info map[string]any
 		json.NewDecoder(infoResp.Body).Decode(&info)
 		infoResp.Body.Close()
@@ -203,7 +205,7 @@ func runCmd(args []string) error {
 	manifest["ranking_document_limit"] = 100
 	manifest["percentiles"] = "linear interpolation; all attempts, including failures"
 	manifest["token_scope"] = "pack only; embedding.EstimateTokens, not billed tokens"
-	manifest["limits"] = []string{"real event ingestion/redaction/DocFromEvent/chunking, not full supplied-session component indexing", "global FTS statistics from all per-question projects; unlike independently indexed agentmemory component", "historical timestamps unchanged; 72h session-card cutoff retained", "pack scores source sessions in final items, not completeness of answer-bearing text", "cached embedding latency is not production latency; hook benchmark measures live CPU provider", "vector Similar has no threshold; hybrid/pack keep production thresholds"}
+	manifest["limits"] = []string{"real event ingestion/redaction/DocFromEvent/chunking, not full supplied-session component indexing", "FTS statistics cover this database; use -isolate-projects for independent per-question indexes", "historical timestamps unchanged; 72h session-card cutoff retained", "pack scores source sessions in final items, not completeness of answer-bearing text", "cached embedding latency is not production latency; hook benchmark measures live CPU provider", "vector Similar has no threshold; hybrid/pack keep production thresholds"}
 	var emb *embedding.Service
 	var observer *observedSemantic
 	if *mode != "fts" {
