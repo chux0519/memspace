@@ -48,7 +48,7 @@ func runDataset(path string) ([]question, error) {
 	parsedRunData.questions = qs
 	return qs, nil
 }
-func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []question, reuseSource string) error {
+func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []question, reuseSource string, tracePack bool) error {
 	if e := benchutil.NewDir(out); e != nil {
 		return e
 	}
@@ -63,6 +63,7 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 	manifest := benchutil.Manifest()
 	manifest["dataset_sha256"] = datasetSHA
 	manifest["mode"] = mode
+	manifest["trace_pack"] = tracePack
 	manifest["diagnostic_no_floor"] = noFloor
 	manifest["index_isolation"] = "independent database per question; immutable dataset parsing and text vectors may be cached"
 	manifest["production_source_sha256"] = sourceSHA()
@@ -94,6 +95,9 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 		index := filepath.Join(dbDir, key+".db")
 		// A prior run's source index is reusable; result directories are immutable.
 		args := []string{"-data", data, "-db", index, "-out", child, "-embed-url", url, "-mode", mode, "-question-id", q.ID}
+		if tracePack {
+			args = append(args, "-trace-pack")
+		}
 		if reuseSource != "" {
 			args = append(args, "-reuse-index-source", reuseSource)
 		}

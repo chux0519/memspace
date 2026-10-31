@@ -109,6 +109,7 @@ func runCmd(args []string) error {
 	noFloor := fs.Bool("no-floor", false, "diagnostic hybrid floor disabled; not baseline")
 	isolate := fs.Bool("isolate-projects", false, "independent per-question databases, agentmemory corpus isolation")
 	questionID := fs.String("question-id", "", "one question, used by isolated runner")
+	tracePack := fs.Bool("trace-pack", false, "record actual context stages; pack only, diagnostic timing")
 	reuseSource := fs.String("reuse-index-source", "", "explicitly replay a ready index from this producer SHA; verify ingestion code is unchanged")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -124,6 +125,9 @@ func runCmd(args []string) error {
 	}
 	if *mode != "fts" && *mode != "vector" && *mode != "hybrid" && *mode != "pack" {
 		return fmt.Errorf("invalid mode")
+	}
+	if *tracePack && *mode != "pack" {
+		return fmt.Errorf("trace-pack requires pack mode")
 	}
 	if *path == "" {
 		return fmt.Errorf("-db is required")
@@ -158,7 +162,7 @@ func runCmd(args []string) error {
 		qs = qs[:min(*limit, len(qs))]
 	}
 	if *isolate {
-		return isolatedRun(*data, a, *out, *url, *mode, *noFloor, qs, *reuseSource)
+		return isolatedRun(*data, a, *out, *url, *mode, *noFloor, qs, *reuseSource, *tracePack)
 	}
 	if *reuseSource != "" {
 		if err := benchutil.RequireCopy(a); err != nil {
@@ -210,6 +214,7 @@ func runCmd(args []string) error {
 	manifest["db_counts"] = benchutil.Counts(ctx, d)
 	manifest["db_counts_before_embedding"] = manifest["db_counts"]
 	manifest["mode"] = *mode
+	manifest["trace_pack"] = *tracePack
 	infoClient := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
 	defer infoClient.CloseIdleConnections()
 	if infoResp, err := infoClient.Get(strings.TrimSuffix(*url, "/v1/embeddings") + "/info"); err == nil {
@@ -293,6 +298,7 @@ func runCmd(args []string) error {
 		var docs []int64
 		var refs []string
 		var pack *contextpack.Pack
+		var trace []contextpack.TraceEvent
 		var queryErr error
 		var below int
 		if *mode == "vector" {
@@ -306,7 +312,14 @@ func runCmd(args []string) error {
 				}
 			}
 		} else if *mode == "pack" {
-			pack, queryErr = contextpack.Build(ctx, d, evalOwner, state.Device, contextpack.Request{Mode: contextpack.ModePrompt, Project: search.ProjectRef{ID: pid}, Query: q.Question})
+			req := contextpack.Request{Mode: contextpack.ModePrompt, Project: search.ProjectRef{ID: pid}, Query: q.Question}
+			if *tracePack {
+				pack, queryErr = contextpack.BuildWithTrace(ctx, d, evalOwner, state.Device, req, func(event contextpack.TraceEvent) {
+					trace = append(trace, event)
+				})
+			} else {
+				pack, queryErr = contextpack.Build(ctx, d, evalOwner, state.Device, req)
+			}
 			if pack != nil {
 				for _, it := range pack.Items {
 					refs = append(refs, it.Ref)
@@ -390,7 +403,20 @@ func runCmd(args []string) error {
 		if e = se.Encode(r); e != nil {
 			return e
 		}
-		if e = ee.Encode(map[string]any{"question_id": q.ID, "project_id": pid, "returned_sessions": ranked, "doc_ids": docs, "pack": pack, "raw_dataset_answer_session_ids": q.AnswerIDs, "gold_sessions": func() []string {
+		traceSources := map[string]string{}
+		for _, stage := range trace {
+			for _, hit := range stage.Hits {
+				if source, ok := state.Sessions[hit.SessionID]; ok {
+					traceSources[hit.SessionID] = source
+				}
+			}
+			for _, item := range stage.Items {
+				if source, ok := state.Sessions[item.Ref]; ok {
+					traceSources[item.Ref] = source
+				}
+			}
+		}
+		if e = ee.Encode(map[string]any{"question_id": q.ID, "project_id": pid, "returned_sessions": ranked, "doc_ids": docs, "pack": pack, "trace": trace, "trace_session_sources": traceSources, "raw_dataset_answer_session_ids": q.AnswerIDs, "gold_sessions": func() []string {
 			if r.Answerable {
 				return q.AnswerIDs
 			}

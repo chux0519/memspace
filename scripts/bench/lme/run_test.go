@@ -7,8 +7,15 @@ import (
 	"github.com/chux0519/memspace/internal/search"
 	"math"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestPackTraceCannotBeUsedForOtherModes(t *testing.T) {
+	if err := runCmd([]string{"-mode", "fts", "-trace-pack"}); err == nil || !strings.Contains(err.Error(), "requires pack") {
+		t.Fatalf("trace mode accepted without a pack: %v", err)
+	}
+}
 
 func TestMetricsUseAllSourcesAndExcludeAbstention(t *testing.T) {
 	q := question{ID: "q", AnswerIDs: []string{"a", "b"}}

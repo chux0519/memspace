@@ -101,6 +101,22 @@ type section struct {
 
 // Build assembles a pack for the caller (owner, device).
 func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request) (*Pack, error) {
+	return build(ctx, db, owner, deviceID, req, nil)
+}
+
+// BuildWithTrace runs the same pipeline with a per-call diagnostic observer.
+// The normal API and hook use Build and expose no intermediate source text.
+func BuildWithTrace(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer) (*Pack, error) {
+	pack, err := build(ctx, db, owner, deviceID, req, observer)
+	if err != nil {
+		observe(observer, TraceEvent{Stage: "error", Note: err.Error()})
+	} else {
+		observe(observer, TraceEvent{Stage: "rendered", Items: pack.Items, Text: pack.Text, Note: pack.Note})
+	}
+	return pack, err
+}
+
+func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer) (*Pack, error) {
 	pack := &Pack{Items: []Item{}}
 	projectID, err := req.Project.Resolve(ctx, db, owner, deviceID)
 	if err != nil {
@@ -138,7 +154,7 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 			opts.SemanticQuery = promptSemanticQuery(req.Query)
 			opts.Parallel = true
 		}
-		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts)
+		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts, observer)
 		if err != nil {
 			return err
 		}
@@ -191,6 +207,13 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 		return nil, fmt.Errorf("%w: unknown mode %q", search.ErrBadRequest, req.Mode)
 	}
 	budget = min(budget, HardLimit)
+	if observer != nil {
+		var items []Item
+		for _, s := range sections {
+			items = append(items, s.item)
+		}
+		observe(observer, TraceEvent{Stage: "sections", Items: items})
+	}
 	render(pack, sections, budget)
 	return pack, nil
 }
@@ -321,7 +344,7 @@ func card(si *model.SessionInfo, s *summary.Summary, callerDevice string) string
 	return b.String()
 }
 
-func history(ctx context.Context, db *sql.DB, owner, projectID, current, query string, limit int, opts search.Options) ([]section, error) {
+func history(ctx context.Context, db *sql.DB, owner, projectID, current, query string, limit int, opts search.Options, observer Observer) ([]section, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
@@ -333,19 +356,27 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 	if err != nil {
 		return nil, err
 	}
+	observe(observer, TraceEvent{Stage: "search", Hits: resp.Results, Note: resp.Note})
 	resp.Results, err = uniqueHistoryHits(ctx, db, owner, projectID, resp.Results, limit*4)
 	if err != nil {
 		return nil, err
 	}
+	observe(observer, TraceEvent{Stage: "deduplicated", Hits: resp.Results})
 	var out []section
 	inject, _ := search.MinSimilarities()
+	admitted := admittedHistoryHits(resp.Results, current, inject)
+	observe(observer, TraceEvent{Stage: "admitted", Hits: admitted})
+	ordered := orderHistoryHits(admitted)
+	observe(observer, TraceEvent{Stage: "ordered", Hits: ordered})
 	seenContent := map[string]map[string]bool{}
-	for _, h := range historyCandidates(resp.Results, current, inject) {
+	var selected []model.SearchResult
+	for _, h := range ordered {
 		content, err := historyContent(ctx, db, owner, projectID, h, strongHistoryHit(h, inject))
 		if err != nil {
 			return nil, err
 		}
 		if content == "" {
+			observe(observer, TraceEvent{Stage: "content", Hits: []model.SearchResult{h}, Decision: "missing_or_stale"})
 			continue
 		}
 
@@ -355,9 +386,14 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 			}
 			key := strings.Join(strings.Fields(content), " ")
 			if seenContent[h.SessionID][key] {
+				observe(observer, TraceEvent{Stage: "content", Hits: []model.SearchResult{h}, Text: content, Decision: "duplicate_content"})
 				continue
 			}
 			seenContent[h.SessionID][key] = true
+		}
+		observe(observer, TraceEvent{Stage: "content", Hits: []model.SearchResult{h}, Text: content, Decision: "selected"})
+		if observer != nil {
+			selected = append(selected, h)
 		}
 		text := fmt.Sprintf("- [%s] %s · %s@%s: ", h.Kind, h.OccurredAt.Local().Format("2006-01-02 15:04"), h.AgentType, h.DeviceName)
 		if h.Title != "" {
@@ -373,6 +409,7 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 			break
 		}
 	}
+	observe(observer, TraceEvent{Stage: "selected", Hits: selected})
 	return out, nil
 }
 

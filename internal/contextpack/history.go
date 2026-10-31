@@ -122,12 +122,24 @@ func historyPreview(h model.SearchResult) string {
 // filling spare slots with more evidence from one session. The overall delivery
 // cap and exact-content deduplication apply after scoped hydration in history().
 func historyCandidates(hits []model.SearchResult, current string, inject float64) []model.SearchResult {
-	var groups [][]model.SearchResult
-	sessions := map[string]int{}
+	return orderHistoryHits(admittedHistoryHits(hits, current, inject))
+}
+
+func admittedHistoryHits(hits []model.SearchResult, current string, inject float64) []model.SearchResult {
+	var admitted []model.SearchResult
 	for _, h := range hits {
 		if current != "" && h.SessionID == current || !useHistoryHit(h, inject) {
 			continue
 		}
+		admitted = append(admitted, h)
+	}
+	return admitted
+}
+
+func orderHistoryHits(hits []model.SearchResult) []model.SearchResult {
+	var groups [][]model.SearchResult
+	sessions := map[string]int{}
+	for _, h := range hits {
 		i, ok := sessions[h.SessionID]
 		if h.SessionID == "" || !ok {
 			if h.SessionID != "" {
