@@ -179,6 +179,8 @@ func main() {
 	}
 	var err error
 	switch os.Args[1] {
+	case "sweep":
+		err = sweepCmd(os.Args[2:])
 	case "audit-cache":
 		err = auditCacheCmd(os.Args[2:])
 	case "serve":

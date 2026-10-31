@@ -188,7 +188,7 @@ func serverStartCmd() *cobra.Command {
 				go releases.Run(context.WithoutCancel(cmd.Context()))
 			}
 
-			opts := server.Options{Embedding: emb, DownloadsDir: cfg.Server.DownloadsDir, LatestRelease: releases.Latest}
+			opts := server.Options{Embedding: emb, DownloadsDir: cfg.Server.DownloadsDir, LatestRelease: releases.Latest, ContextPolicy: cfg.Context}
 			srv := &http.Server{
 				Addr:              cfg.Server.Address,
 				Handler:           server.NewWithOptions(database, cfg.Auth.OwnerUserID, opts),

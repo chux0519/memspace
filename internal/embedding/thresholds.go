@@ -11,18 +11,20 @@ type Thresholds struct {
 	Inject float64 `json:"inject"`
 	// SearchFloor: below it, semantic hits are noise and dropped from search.
 	SearchFloor float64 `json:"search_floor"`
-	// Source says where the values come from: the model's calibration,
+	// Source says where the values come from: historical model defaults,
 	// "config", or "default" for an uncalibrated model.
 	Source string `json:"source"`
 }
 
-// calibrated maps a model-name fragment to measured thresholds.
-var calibrated = []struct {
+// historical maps model names to defaults informed by a small authored
+// embedding-pair study, not independent end-to-end admission validation.
+var historical = []struct {
 	fragment string
 	t        Thresholds
 }{
 	// 2040 docs with real distractors: at 0.60, 51% of relevant and 0.016%
-	// of irrelevant pairs pass; off-topic queries top out at 0.50.
+	// of assumed-irrelevant pairs pass; five easy off-topic queries top out
+	// at 0.50. These are pair rates, not query-level false-injection rates.
 	{"bge-m3", Thresholds{Inject: 0.60, SearchFloor: 0.45}},
 	// At 0.35, 40% of relevant and 0.03% of irrelevant pairs pass;
 	// off-topic queries top out at 0.29.
@@ -39,7 +41,7 @@ var uncalibrated = Thresholds{Inject: 0.60, SearchFloor: 0.30, Source: "default"
 func ThresholdsFor(model string, inject, searchFloor float64) Thresholds {
 	t := uncalibrated
 	m := strings.ToLower(model)
-	for _, c := range calibrated {
+	for _, c := range historical {
 		if strings.Contains(m, c.fragment) {
 			t = c.t
 			t.Source = c.fragment

@@ -227,7 +227,22 @@ model = "bge-m3"
 # query_timeout = "1s"
 # min_similarity = 0                    # meaning-only matches injected into agents (0 = model default)
 # search_min_similarity = 0             # floor for semantic hits in search (0 = model default)
+
+[context]
+admission_mode = "hybrid"              # hybrid | semantic | none
+# semantic_min_similarity = 0.60       # omitted inherits embedding.min_similarity/model default
+keyword_min_coverage = 0.50            # partial keyword matches: fraction in [0,1]
+allow_exact_keywords = true           # admit full keyword matches without semantic evidence
 ```
+
+The context values above preserve the existing policy; they are compatibility
+defaults, not universal relevance recommendations. `semantic` uses only semantic
+qualification; `none` disables qualification while preserving scope, source
+validation and output limits. An explicit context semantic threshold of `0`
+means zero, unlike the legacy embedding setting's automatic `0`. Context
+qualification overrides do not change search ranking or the existing strong-hit
+text expansion threshold. See [admission comparisons](scripts/bench/ADMISSION.md)
+for definitions and a reproducible way to choose values from evidence.
 
 Choosing hardware (bge-m3, 1200-character documents, batch 8):
 

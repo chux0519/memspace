@@ -1,0 +1,128 @@
+[
+  {
+    "name": "baseline",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic045",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.45,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic050",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.5,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic055",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.55,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic065",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.65,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic075",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.75,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic070",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.7,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "keyword025",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 0.25,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "keyword075",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 0.75,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "keyword100",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 1.0,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "no_exact",
+    "policy": {
+      "mode": "hybrid",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": false
+    }
+  },
+  {
+    "name": "semantic_only060",
+    "policy": {
+      "mode": "semantic",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "semantic_only055",
+    "policy": {
+      "mode": "semantic",
+      "semantic_min_similarity": 0.55,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  },
+  {
+    "name": "no_gate",
+    "policy": {
+      "mode": "none",
+      "semantic_min_similarity": 0.6,
+      "keyword_min_coverage": 0.5,
+      "allow_exact_keywords": true
+    }
+  }
+]

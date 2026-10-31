@@ -22,6 +22,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/chux0519/memspace/internal/admission"
 	"github.com/chux0519/memspace/internal/auth"
 	"github.com/chux0519/memspace/internal/contextpack"
 	"github.com/chux0519/memspace/internal/db"
@@ -121,7 +122,16 @@ func run() error {
 	scale := flag.Int("scale", 1, "declared corpus scale")
 	clone := flag.Int("clone", 0, "clone search index into N total project partitions, then exit")
 	e2eN := flag.Int("e2e", 50, "real processes per mode")
+	policyPath := flag.String("admission-policy", "", "optional context policy JSON")
 	flag.Parse()
+	var policy admission.Policy
+	if *policyPath != "" {
+		var e error
+		policy, e = admission.Load(*policyPath)
+		if e != nil {
+			return e
+		}
+	}
 	if e := benchutil.RequireCopy(*path); e != nil {
 		return e
 	}
@@ -130,7 +140,7 @@ func run() error {
 		return e
 	}
 	defer d.Close()
-	ctx := context.Background()
+	ctx := admission.WithPolicy(context.Background(), policy)
 	if *clone > 0 {
 		return cloneIndex(ctx, d, *clone)
 	}
@@ -141,6 +151,7 @@ func run() error {
 	manifest["db_sha256_before"] = benchutil.FileSHA(*path)
 	manifest["db_counts"] = benchutil.Counts(ctx, d)
 	manifest["scale"] = *scale
+	manifest["admission_policy"] = policy
 	manifest["seed"] = 20261031
 	manifest["e2e_mcp_hint_enabled"] = true
 	manifest["e2e_current_session"] = "fresh synthetic session; direct Build uses historical native session"
@@ -189,6 +200,9 @@ func run() error {
 	}
 	manifest["embedding_before"] = st
 	search.SetSemantic(t)
+	modelMin, _ := search.MinSimilarities()
+	resolvedPolicy, _ := policy.Resolve(modelMin)
+	manifest["resolved_admission_policy"] = resolvedPolicy
 	defer search.SetSemantic(nil)
 	f, e := os.OpenFile(filepath.Join(*out, "samples.ndjson"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if e != nil {
@@ -387,7 +401,7 @@ func realHooks(ctx context.Context, d *sql.DB, t *timer, bin, out string, prompt
 		t.mu.Unlock()
 		at := time.Now()
 		rec := &captureWriter{ResponseWriter: w, ctx: r.Context()}
-		handler.Context(d, owner).ServeHTTP(rec, r)
+		handler.Context(d, owner).ServeHTTP(rec, r.WithContext(admission.WithPolicy(r.Context(), admission.FromContext(ctx))))
 		x := receipt{Duration: ms(time.Since(at))}
 		var p contextpack.Pack
 		if rec.status >= 400 {

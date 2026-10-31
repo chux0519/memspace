@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/chux0519/memspace/internal/admission"
 	"github.com/chux0519/memspace/internal/auth"
 	"github.com/chux0519/memspace/internal/embedding"
 	"github.com/chux0519/memspace/internal/mcpserver"
@@ -18,6 +19,7 @@ import (
 
 // Options are optional server components.
 type Options struct {
+	ContextPolicy admission.Policy
 	// Embedding enables semantic search status reporting (nil = disabled).
 	Embedding *embedding.Service
 	// DownloadsDir serves client binaries at /downloads/ ("" = none).
@@ -41,6 +43,11 @@ func NewWithOptions(db *sql.DB, ownerUserID string, opts Options) http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeaders)
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(admission.WithPolicy(req.Context(), opts.ContextPolicy)))
+		})
+	})
 
 	r.Get("/api/v1/health", handler.Health(db, opts.LatestRelease))
 

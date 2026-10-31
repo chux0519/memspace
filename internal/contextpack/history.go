@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/chux0519/memspace/internal/admission"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/redact"
 	"github.com/chux0519/memspace/internal/search"
@@ -56,7 +57,8 @@ func strongHistoryHit(h model.SearchResult, inject float64) bool {
 }
 
 func useHistoryHit(h model.SearchResult, inject float64) bool {
-	return strongHistoryHit(h, inject) || h.Match == "any" && h.TotalTerms > 0 && h.MatchedTerms*2 >= h.TotalTerms
+	p, _ := (admission.Policy{}).Resolve(inject)
+	return p.Accept(h.Match, h.Similarity, h.MatchedTerms, h.TotalTerms)
 }
 
 // Search snippets are display previews. Keep short accepted documents intact
@@ -122,13 +124,14 @@ func historyPreview(h model.SearchResult) string {
 // filling spare slots with more evidence from one session. The overall delivery
 // cap and exact-content deduplication apply after scoped hydration in history().
 func historyCandidates(hits []model.SearchResult, current string, inject float64) []model.SearchResult {
-	return orderHistoryHits(admittedHistoryHits(hits, current, inject))
+	p, _ := (admission.Policy{}).Resolve(inject)
+	return orderHistoryHits(admittedHistoryHits(hits, current, p))
 }
 
-func admittedHistoryHits(hits []model.SearchResult, current string, inject float64) []model.SearchResult {
+func admittedHistoryHits(hits []model.SearchResult, current string, policy admission.Resolved) []model.SearchResult {
 	var admitted []model.SearchResult
 	for _, h := range hits {
-		if current != "" && h.SessionID == current || !useHistoryHit(h, inject) {
+		if current != "" && h.SessionID == current || !policy.Accept(h.Match, h.Similarity, h.MatchedTerms, h.TotalTerms) {
 			continue
 		}
 		admitted = append(admitted, h)

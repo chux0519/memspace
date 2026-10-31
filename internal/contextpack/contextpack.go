@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/chux0519/memspace/internal/admission"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/prompt"
 	"github.com/chux0519/memspace/internal/redact"
@@ -101,13 +102,30 @@ type section struct {
 
 // Build assembles a pack for the caller (owner, device).
 func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request) (*Pack, error) {
-	return build(ctx, db, owner, deviceID, req, nil)
+	return build(ctx, db, owner, deviceID, req, nil, nil)
 }
 
 // BuildWithTrace runs the same pipeline with a per-call diagnostic observer.
 // The normal API and hook use Build and expose no intermediate source text.
 func BuildWithTrace(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer) (*Pack, error) {
-	pack, err := build(ctx, db, owner, deviceID, req, observer)
+	return observedBuild(ctx, db, owner, deviceID, req, observer, nil)
+}
+
+// BuildFromCandidates is for trusted local quality experiments. It skips search
+// and reuses a snapshot from the same query/index, including EvidenceText.
+// Project/owner hydration, current-session exclusion, qualification, content
+// validation and rendering still run. No HTTP/MCP endpoint accepts snapshots.
+// Its elapsed time is not end-to-end search latency.
+func BuildFromCandidates(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, hits []model.SearchResult, observer Observer) (*Pack, error) {
+	if req.Mode != ModePrompt {
+		return nil, fmt.Errorf("%w: candidate replay requires prompt mode", search.ErrBadRequest)
+	}
+	replay := &model.SearchResponse{Results: append([]model.SearchResult(nil), hits...)}
+	return observedBuild(ctx, db, owner, deviceID, req, observer, replay)
+}
+
+func observedBuild(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer, replay *model.SearchResponse) (*Pack, error) {
+	pack, err := build(ctx, db, owner, deviceID, req, observer, replay)
 	if err != nil {
 		observe(observer, TraceEvent{Stage: "error", Note: err.Error()})
 	} else {
@@ -116,7 +134,10 @@ func BuildWithTrace(ctx context.Context, db *sql.DB, owner, deviceID string, req
 	return pack, err
 }
 
-func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer) (*Pack, error) {
+func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer, replay *model.SearchResponse) (*Pack, error) {
+	if err := admission.FromContext(ctx).Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", search.ErrBadRequest, err)
+	}
 	pack := &Pack{Items: []Item{}}
 	projectID, err := req.Project.Resolve(ctx, db, owner, deviceID)
 	if err != nil {
@@ -154,7 +175,7 @@ func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request,
 			opts.SemanticQuery = promptSemanticQuery(req.Query)
 			opts.Parallel = true
 		}
-		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts, observer)
+		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts, observer, replay)
 		if err != nil {
 			return err
 		}
@@ -344,15 +365,26 @@ func card(si *model.SessionInfo, s *summary.Summary, callerDevice string) string
 	return b.String()
 }
 
-func history(ctx context.Context, db *sql.DB, owner, projectID, current, query string, limit int, opts search.Options, observer Observer) ([]section, error) {
+func history(ctx context.Context, db *sql.DB, owner, projectID, current, query string, limit int, opts search.Options, observer Observer, replay *model.SearchResponse) ([]section, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
-	resp, err := search.SearchWithOptions(ctx, db, owner, model.SearchRequest{
-		Query: query, Scope: model.ScopeSelectedProjects, ProjectIDs: []string{projectID},
-		Kinds: []string{search.KindMemory, search.KindSummary, search.KindPrompt, search.KindReply, search.KindFailure, search.KindChange},
-		Limit: limit * 8, Highlight: model.HighlightMarks,
-	}, opts)
+	var resp *model.SearchResponse
+	var err error
+	if replay != nil {
+		for _, h := range replay.Results {
+			if h.ProjectID != projectID {
+				return nil, fmt.Errorf("%w: replay candidate outside requested project", search.ErrBadRequest)
+			}
+		}
+		resp = &model.SearchResponse{Results: append([]model.SearchResult(nil), replay.Results...)}
+	} else {
+		resp, err = search.SearchWithOptions(ctx, db, owner, model.SearchRequest{
+			Query: query, Scope: model.ScopeSelectedProjects, ProjectIDs: []string{projectID},
+			Kinds: []string{search.KindMemory, search.KindSummary, search.KindPrompt, search.KindReply, search.KindFailure, search.KindChange},
+			Limit: limit * 8, Highlight: model.HighlightMarks,
+		}, opts)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +396,11 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 	observe(observer, TraceEvent{Stage: "deduplicated", Hits: resp.Results})
 	var out []section
 	inject, _ := search.MinSimilarities()
-	admitted := admittedHistoryHits(resp.Results, current, inject)
+	policy, err := admission.FromContext(ctx).Resolve(inject)
+	if err != nil {
+		return nil, err
+	}
+	admitted := admittedHistoryHits(resp.Results, current, policy)
 	observe(observer, TraceEvent{Stage: "admitted", Hits: admitted})
 	ordered := orderHistoryHits(admitted)
 	observe(observer, TraceEvent{Stage: "ordered", Hits: ordered})

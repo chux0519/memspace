@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/chux0519/memspace/internal/admission"
 	"github.com/chux0519/memspace/internal/contextpack"
 	"github.com/chux0519/memspace/internal/db"
 	"github.com/chux0519/memspace/internal/embedding"
@@ -440,8 +441,17 @@ func run() error {
 	candidateDepths := flag.String("export-candidates", "", "optional comma-separated candidate depths for offline rerank study (e.g. 12,24)")
 	candidateFloor := flag.Float64("candidate-floor", -1, "experimental candidate-only similarity floor; -1 keeps production default")
 	focused := flag.Bool("focused", false, "allow a small focused regression fixture outside the default 50–100 questions")
+	policyPath := flag.String("admission-policy", "", "optional policy JSON; qualification only")
 	relevancePath := flag.String("relevance-labels", "", "optional SHA-bound exhaustive relevance judgments for a subset of questions")
 	flag.Parse()
+	var policy admission.Policy
+	if *policyPath != "" {
+		var e error
+		policy, e = admission.Load(*policyPath)
+		if e != nil {
+			return e
+		}
+	}
 	if *candidateFloor != -1 && !(*candidateFloor >= 0 && *candidateFloor <= 1) {
 		return errors.New("candidate-floor must be -1 or within [0,1]")
 	}
@@ -487,7 +497,7 @@ func run() error {
 	}
 	sourceCopies := map[string][]byte{}
 	sourceHashes := map[string]string{}
-	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "scripts/bench/retrieval/relevance.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
+	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "scripts/bench/retrieval/relevance.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/admission/policy.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return e
@@ -529,7 +539,7 @@ func run() error {
 		return err
 	}
 	defer d.Close()
-	ctx := context.Background()
+	ctx := admission.WithPolicy(context.Background(), policy)
 	seedStart := time.Now()
 	docs, paths, err := seed(ctx, d, c, work)
 	if err != nil {
@@ -637,7 +647,7 @@ func run() error {
 				http.Error(w, "bad request", 400)
 				return
 			}
-			pack, handlerErr = contextpack.Build(r.Context(), d, owner, device, req)
+			pack, handlerErr = contextpack.Build(admission.WithPolicy(r.Context(), policy), d, owner, device, req)
 			if handlerErr != nil {
 				http.Error(w, handlerErr.Error(), 500)
 				return
@@ -844,6 +854,10 @@ func run() error {
 		}
 		return nil
 	}(), "query_embedding_timeout_ms": timeout.Milliseconds(), "seed_ms": seedMS, "embedding_build_ms": embedMS, "git_commit": git("rev-parse", "HEAD"), "git_status": git("status", "--short"), "go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH, "cpu_count": runtime.NumCPU(), "go_heap_bytes_end": mem.Alloc, "at": time.Now().UTC(), "limits": []string{"synthetic authored labels, not independently reviewed; no claim about real-world task success", "warm sequential runs on loopback; no CLI startup, production auth or LAN latency", "context and hooks use current project; all-project query excluded", "context honors per-question budget; hooks use production default budget", "hook_repeat deliberately shares delivered state; not included in independent recall", "token counts require tokenize_report.py; characters are not tokens", "corpus is small unless optional distractors supplied; not a production-scale latency benchmark", "no background ingest, concurrent load, failure injection, or coding-agent execution"}}
+	manifest["admission_policy"] = policy
+	modelMin, _ := search.MinSimilarities()
+	resolvedPolicy, _ := policy.Resolve(modelMin)
+	manifest["resolved_admission_policy"] = resolvedPolicy
 	if relevanceHash != "" {
 		manifest["relevance_labels_sha256"] = relevanceHash
 		n := 0

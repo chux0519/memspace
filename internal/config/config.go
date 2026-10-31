@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/chux0519/memspace/internal/admission"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,11 +13,12 @@ import (
 
 // Config is the top-level configuration structure.
 type Config struct {
-	Server    ServerConfig    `toml:"server"`
-	Database  DatabaseConfig  `toml:"database"`
-	Auth      AuthConfig      `toml:"auth"`
-	Client    ClientConfig    `toml:"client"`
-	Embedding EmbeddingConfig `toml:"embedding"`
+	Server    ServerConfig     `toml:"server"`
+	Database  DatabaseConfig   `toml:"database"`
+	Auth      AuthConfig       `toml:"auth"`
+	Client    ClientConfig     `toml:"client"`
+	Embedding EmbeddingConfig  `toml:"embedding"`
+	Context   admission.Policy `toml:"context"`
 }
 
 // EmbeddingConfig enables semantic search through an OpenAI-compatible
@@ -39,7 +41,7 @@ type EmbeddingConfig struct {
 	// MinSimilarity is the cosine similarity a meaning-only match needs to
 	// be injected into an agent's context; SearchMinSimilarity is the floor
 	// below which semantic hits are dropped from search. 0 = the model's
-	// calibrated value (bge-m3 0.60 / 0.45, arctic-embed 0.35 / 0.20).
+	// historical default (bge-m3 0.60 / 0.45, arctic-embed 0.35 / 0.20).
 	MinSimilarity       float64 `toml:"min_similarity"`
 	SearchMinSimilarity float64 `toml:"search_min_similarity"`
 }
@@ -192,8 +194,14 @@ func Load(path string) (*Config, error) {
 	path = ResolvePath(path)
 	if path != "" {
 		if _, err := os.Stat(path); err == nil {
-			if _, err := toml.DecodeFile(path, cfg); err != nil {
+			meta, err := toml.DecodeFile(path, cfg)
+			if err != nil {
 				return nil, fmt.Errorf("config: parse %s: %w", path, err)
+			}
+			for _, key := range meta.Undecoded() {
+				if len(key) > 0 && key[0] == "context" {
+					return nil, fmt.Errorf("config: unknown context setting %s", key.String())
+				}
 			}
 		}
 	}
@@ -242,6 +250,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: client.home: %w", err)
 	}
 	cfg.Client.Home = home
+	if err := cfg.Context.Validate(); err != nil {
+		return nil, fmt.Errorf("config: %w", err)
+	}
 
 	return cfg, nil
 }

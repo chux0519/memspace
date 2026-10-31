@@ -1,0 +1,764 @@
+{
+  "version": "admission-probes-v1",
+  "description": "80 agent-authored queries over 20 independent scene groups: 40 positives and 40 explicit missing-attribute/scope negatives. Not human blind labels or a population error estimate. All variants of a scene stay in one split. Shared unsupervised source bank; test outcome labels not used in profile selection.",
+  "projects": [
+    "forge",
+    "atlas",
+    "beacon",
+    "orchid"
+  ],
+  "documents": [
+    {
+      "id": "policy-fact-00",
+      "project": "forge",
+      "session": "session-policy-fact-00",
+      "text": "Configuration record for aurora-queue: consumer wait time is 240 milliseconds. This is the deployed setting.",
+      "evidence": "240 milliseconds"
+    },
+    {
+      "id": "policy-alt-00",
+      "project": "atlas",
+      "session": "session-policy-alt-00",
+      "text": "aurora-queue-sandbox 的唯一配置：consumer wait time is 240 milliseconds。该记录属于独立的 sandbox 项目。",
+      "evidence": "240 milliseconds"
+    },
+    {
+      "id": "policy-fact-01",
+      "project": "atlas",
+      "session": "session-policy-fact-01",
+      "text": "Configuration record for birch-loader: uses a 12-megabyte upload buffer. This is the deployed setting.",
+      "evidence": "12-megabyte upload buffer"
+    },
+    {
+      "id": "policy-alt-01",
+      "project": "beacon",
+      "session": "session-policy-alt-01",
+      "text": "birch-loader-sandbox 的唯一配置：uses a 12-megabyte upload buffer。该记录属于独立的 sandbox 项目。",
+      "evidence": "12-megabyte upload buffer"
+    },
+    {
+      "id": "policy-fact-02",
+      "project": "beacon",
+      "session": "session-policy-fact-02",
+      "text": "Configuration record for cedar-cache: entry lifetime is 75 seconds. This is the deployed setting.",
+      "evidence": "75 seconds"
+    },
+    {
+      "id": "policy-alt-02",
+      "project": "orchid",
+      "session": "session-policy-alt-02",
+      "text": "cedar-cache-sandbox 的唯一配置：entry lifetime is 75 seconds。该记录属于独立的 sandbox 项目。",
+      "evidence": "75 seconds"
+    },
+    {
+      "id": "policy-fact-03",
+      "project": "orchid",
+      "session": "session-policy-fact-03",
+      "text": "Configuration record for delta-agent: allows 7 concurrent subprocesses. This is the deployed setting.",
+      "evidence": "7 concurrent subprocesses"
+    },
+    {
+      "id": "policy-alt-03",
+      "project": "forge",
+      "session": "session-policy-alt-03",
+      "text": "delta-agent-sandbox 的唯一配置：allows 7 concurrent subprocesses。该记录属于独立的 sandbox 项目。",
+      "evidence": "7 concurrent subprocesses"
+    },
+    {
+      "id": "policy-fact-04",
+      "project": "forge",
+      "session": "session-policy-fact-04",
+      "text": "Configuration record for ember-export: writes pages of 350 records. This is the deployed setting.",
+      "evidence": "350 records"
+    },
+    {
+      "id": "policy-alt-04",
+      "project": "atlas",
+      "session": "session-policy-alt-04",
+      "text": "ember-export-sandbox 的唯一配置：writes pages of 350 records。该记录属于独立的 sandbox 项目。",
+      "evidence": "350 records"
+    },
+    {
+      "id": "policy-fact-05",
+      "project": "atlas",
+      "session": "session-policy-fact-05",
+      "text": "Configuration record for fjord-router: health probe path is /readyz-v2. This is the deployed setting.",
+      "evidence": "/readyz-v2"
+    },
+    {
+      "id": "policy-alt-05",
+      "project": "beacon",
+      "session": "session-policy-alt-05",
+      "text": "fjord-router-sandbox 的唯一配置：health probe path is /readyz-v2。该记录属于独立的 sandbox 项目。",
+      "evidence": "/readyz-v2"
+    },
+    {
+      "id": "policy-fact-06",
+      "project": "beacon",
+      "session": "session-policy-fact-06",
+      "text": "Configuration record for grove-index: flushes its journal every 9 seconds. This is the deployed setting.",
+      "evidence": "9 seconds"
+    },
+    {
+      "id": "policy-alt-06",
+      "project": "orchid",
+      "session": "session-policy-alt-06",
+      "text": "grove-index-sandbox 的唯一配置：flushes its journal every 9 seconds。该记录属于独立的 sandbox 项目。",
+      "evidence": "9 seconds"
+    },
+    {
+      "id": "policy-fact-07",
+      "project": "orchid",
+      "session": "session-policy-fact-07",
+      "text": "Configuration record for harbor-sender: retries a request at most 4 times. This is the deployed setting.",
+      "evidence": "4 times"
+    },
+    {
+      "id": "policy-alt-07",
+      "project": "forge",
+      "session": "session-policy-alt-07",
+      "text": "harbor-sender-sandbox 的唯一配置：retries a request at most 4 times。该记录属于独立的 sandbox 项目。",
+      "evidence": "4 times"
+    },
+    {
+      "id": "policy-fact-08",
+      "project": "forge",
+      "session": "session-policy-fact-08",
+      "text": "Configuration record for iris-uploader: accepts a maximum file size of 18 megabytes. This is the deployed setting.",
+      "evidence": "18 megabytes"
+    },
+    {
+      "id": "policy-alt-08",
+      "project": "atlas",
+      "session": "session-policy-alt-08",
+      "text": "iris-uploader-sandbox 的唯一配置：accepts a maximum file size of 18 megabytes。该记录属于独立的 sandbox 项目。",
+      "evidence": "18 megabytes"
+    },
+    {
+      "id": "policy-fact-09",
+      "project": "atlas",
+      "session": "session-policy-fact-09",
+      "text": "Configuration record for juniper-worker: claims leases for 42 seconds. This is the deployed setting.",
+      "evidence": "42 seconds"
+    },
+    {
+      "id": "policy-alt-09",
+      "project": "beacon",
+      "session": "session-policy-alt-09",
+      "text": "juniper-worker-sandbox 的唯一配置：claims leases for 42 seconds。该记录属于独立的 sandbox 项目。",
+      "evidence": "42 seconds"
+    },
+    {
+      "id": "policy-fact-10",
+      "project": "beacon",
+      "session": "session-policy-fact-10",
+      "text": "kestrel-bridge 的部署配置记录：连接空闲上限是 95 秒。这是当前生效的设置。",
+      "evidence": "95 秒"
+    },
+    {
+      "id": "policy-alt-10",
+      "project": "orchid",
+      "session": "session-policy-alt-10",
+      "text": "kestrel-bridge-sandbox 的唯一配置：连接空闲上限是 95 秒。该记录属于独立的 sandbox 项目。",
+      "evidence": "95 秒"
+    },
+    {
+      "id": "policy-fact-11",
+      "project": "orchid",
+      "session": "session-policy-fact-11",
+      "text": "larch-scheduler 的部署配置记录：每轮最多领取 23 个作业。这是当前生效的设置。",
+      "evidence": "23 个作业"
+    },
+    {
+      "id": "policy-alt-11",
+      "project": "forge",
+      "session": "session-policy-alt-11",
+      "text": "larch-scheduler-sandbox 的唯一配置：每轮最多领取 23 个作业。该记录属于独立的 sandbox 项目。",
+      "evidence": "23 个作业"
+    },
+    {
+      "id": "policy-fact-12",
+      "project": "forge",
+      "session": "session-policy-fact-12",
+      "text": "maple-parser 的部署配置记录：输入编码固定为 UTF-16LE。这是当前生效的设置。",
+      "evidence": "UTF-16LE"
+    },
+    {
+      "id": "policy-alt-12",
+      "project": "atlas",
+      "session": "session-policy-alt-12",
+      "text": "maple-parser-sandbox 的唯一配置：输入编码固定为 UTF-16LE。该记录属于独立的 sandbox 项目。",
+      "evidence": "UTF-16LE"
+    },
+    {
+      "id": "policy-fact-13",
+      "project": "atlas",
+      "session": "session-policy-fact-13",
+      "text": "nebula-proxy 的部署配置记录：监听端口固定为 18443。这是当前生效的设置。",
+      "evidence": "18443"
+    },
+    {
+      "id": "policy-alt-13",
+      "project": "beacon",
+      "session": "session-policy-alt-13",
+      "text": "nebula-proxy-sandbox 的唯一配置：监听端口固定为 18443。该记录属于独立的 sandbox 项目。",
+      "evidence": "18443"
+    },
+    {
+      "id": "policy-fact-14",
+      "project": "beacon",
+      "session": "session-policy-fact-14",
+      "text": "opal-reporter 的部署配置记录：时区固定为 Pacific/Auckland。这是当前生效的设置。",
+      "evidence": "Pacific/Auckland"
+    },
+    {
+      "id": "policy-alt-14",
+      "project": "orchid",
+      "session": "session-policy-alt-14",
+      "text": "opal-reporter-sandbox 的唯一配置：时区固定为 Pacific/Auckland。该记录属于独立的 sandbox 项目。",
+      "evidence": "Pacific/Auckland"
+    },
+    {
+      "id": "policy-fact-15",
+      "project": "orchid",
+      "session": "session-policy-fact-15",
+      "text": "pine-gateway 的部署配置记录：每个租户的突发额度是 37 次请求。这是当前生效的设置。",
+      "evidence": "37 次请求"
+    },
+    {
+      "id": "policy-alt-15",
+      "project": "forge",
+      "session": "session-policy-alt-15",
+      "text": "pine-gateway-sandbox 的唯一配置：每个租户的突发额度是 37 次请求。该记录属于独立的 sandbox 项目。",
+      "evidence": "37 次请求"
+    },
+    {
+      "id": "policy-fact-16",
+      "project": "forge",
+      "session": "session-policy-fact-16",
+      "text": "quartz-reader 的部署配置记录：读取块大小为 96 KiB。这是当前生效的设置。",
+      "evidence": "96 KiB"
+    },
+    {
+      "id": "policy-alt-16",
+      "project": "atlas",
+      "session": "session-policy-alt-16",
+      "text": "quartz-reader-sandbox 的唯一配置：读取块大小为 96 KiB。该记录属于独立的 sandbox 项目。",
+      "evidence": "96 KiB"
+    },
+    {
+      "id": "policy-fact-17",
+      "project": "atlas",
+      "session": "session-policy-fact-17",
+      "text": "raven-cleaner 的部署配置记录：每天保留 11 份归档。这是当前生效的设置。",
+      "evidence": "11 份归档"
+    },
+    {
+      "id": "policy-alt-17",
+      "project": "beacon",
+      "session": "session-policy-alt-17",
+      "text": "raven-cleaner-sandbox 的唯一配置：每天保留 11 份归档。该记录属于独立的 sandbox 项目。",
+      "evidence": "11 份归档"
+    },
+    {
+      "id": "policy-fact-18",
+      "project": "beacon",
+      "session": "session-policy-fact-18",
+      "text": "spruce-runner 的部署配置记录：任务截止时间是 68 秒。这是当前生效的设置。",
+      "evidence": "68 秒"
+    },
+    {
+      "id": "policy-alt-18",
+      "project": "orchid",
+      "session": "session-policy-alt-18",
+      "text": "spruce-runner-sandbox 的唯一配置：任务截止时间是 68 秒。该记录属于独立的 sandbox 项目。",
+      "evidence": "68 秒"
+    },
+    {
+      "id": "policy-fact-19",
+      "project": "orchid",
+      "session": "session-policy-fact-19",
+      "text": "tundra-sync 的部署配置记录：增量批次最多包含 125 个事件。这是当前生效的设置。",
+      "evidence": "125 个事件"
+    },
+    {
+      "id": "policy-alt-19",
+      "project": "forge",
+      "session": "session-policy-alt-19",
+      "text": "tundra-sync-sandbox 的唯一配置：增量批次最多包含 125 个事件。该记录属于独立的 sandbox 项目。",
+      "evidence": "125 个事件"
+    }
+  ],
+  "scenario_split": {
+    "scene-00": "dev",
+    "scene-01": "test",
+    "scene-02": "test",
+    "scene-03": "dev",
+    "scene-04": "dev",
+    "scene-05": "test",
+    "scene-06": "dev",
+    "scene-07": "test",
+    "scene-08": "test",
+    "scene-09": "test",
+    "scene-10": "dev",
+    "scene-11": "dev",
+    "scene-12": "test",
+    "scene-13": "dev",
+    "scene-14": "test",
+    "scene-15": "test",
+    "scene-16": "test",
+    "scene-17": "test",
+    "scene-18": "dev",
+    "scene-19": "test"
+  },
+  "questions": [
+    {
+      "id": "scene-00-same",
+      "scenario": "scene-00",
+      "split": "dev",
+      "category": "same-language",
+      "query": "What is the configured consumer wait time for aurora-queue?",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-00"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-00"
+      ]
+    },
+    {
+      "id": "scene-00-cross",
+      "scenario": "scene-00",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "aurora-queue 配置的消费者等待时间是多少？",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-00"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-00"
+      ]
+    },
+    {
+      "id": "scene-00-missing",
+      "scenario": "scene-00",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "谁审批了 aurora-queue 的这次配置变更？",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-00-scope",
+      "scenario": "scene-00",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "当前项目中 aurora-queue-sandbox 的消费者等待时间是多少？",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-03-same",
+      "scenario": "scene-03",
+      "split": "dev",
+      "category": "same-language",
+      "query": "What is the configured subprocess concurrency limit for delta-agent?",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-03"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-03"
+      ]
+    },
+    {
+      "id": "scene-03-cross",
+      "scenario": "scene-03",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "delta-agent 配置的子进程并发上限是多少？",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-03"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-03"
+      ]
+    },
+    {
+      "id": "scene-03-missing",
+      "scenario": "scene-03",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "谁审批了 delta-agent 的这次配置变更？",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-03-scope",
+      "scenario": "scene-03",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "当前项目中 delta-agent-sandbox 的子进程并发上限是多少？",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-04-same",
+      "scenario": "scene-04",
+      "split": "dev",
+      "category": "same-language",
+      "query": "What is the configured export page size for ember-export?",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-04"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-04"
+      ]
+    },
+    {
+      "id": "scene-04-cross",
+      "scenario": "scene-04",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "ember-export 配置的导出分页大小是多少？",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-04"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-04"
+      ]
+    },
+    {
+      "id": "scene-04-missing",
+      "scenario": "scene-04",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "谁审批了 ember-export 的这次配置变更？",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-04-scope",
+      "scenario": "scene-04",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "当前项目中 ember-export-sandbox 的导出分页大小是多少？",
+      "project": "forge",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-06-same",
+      "scenario": "scene-06",
+      "split": "dev",
+      "category": "same-language",
+      "query": "What is the configured journal flush interval for grove-index?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-06"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-06"
+      ]
+    },
+    {
+      "id": "scene-06-cross",
+      "scenario": "scene-06",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "grove-index 配置的日志刷盘间隔是多少？",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-06"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-06"
+      ]
+    },
+    {
+      "id": "scene-06-missing",
+      "scenario": "scene-06",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "谁审批了 grove-index 的这次配置变更？",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-06-scope",
+      "scenario": "scene-06",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "当前项目中 grove-index-sandbox 的日志刷盘间隔是多少？",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-10-same",
+      "scenario": "scene-10",
+      "split": "dev",
+      "category": "same-language",
+      "query": "kestrel-bridge 配置的连接空闲上限是多少？",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-10"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-10"
+      ]
+    },
+    {
+      "id": "scene-10-cross",
+      "scenario": "scene-10",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "What is the configured idle connection limit for kestrel-bridge?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-10"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-10"
+      ]
+    },
+    {
+      "id": "scene-10-missing",
+      "scenario": "scene-10",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "Who approved the configuration change for kestrel-bridge?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-10-scope",
+      "scenario": "scene-10",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "What is the configured idle connection limit for kestrel-bridge-sandbox in this project?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-11-same",
+      "scenario": "scene-11",
+      "split": "dev",
+      "category": "same-language",
+      "query": "larch-scheduler 配置的每轮领取作业数是多少？",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-11"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-11"
+      ]
+    },
+    {
+      "id": "scene-11-cross",
+      "scenario": "scene-11",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "What is the configured jobs claimed per round for larch-scheduler?",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-11"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-11"
+      ]
+    },
+    {
+      "id": "scene-11-missing",
+      "scenario": "scene-11",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "Who approved the configuration change for larch-scheduler?",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-11-scope",
+      "scenario": "scene-11",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "What is the configured jobs claimed per round for larch-scheduler-sandbox in this project?",
+      "project": "orchid",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-13-same",
+      "scenario": "scene-13",
+      "split": "dev",
+      "category": "same-language",
+      "query": "nebula-proxy 配置的监听端口是多少？",
+      "project": "atlas",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-13"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-13"
+      ]
+    },
+    {
+      "id": "scene-13-cross",
+      "scenario": "scene-13",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "What is the configured listening port for nebula-proxy?",
+      "project": "atlas",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-13"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-13"
+      ]
+    },
+    {
+      "id": "scene-13-missing",
+      "scenario": "scene-13",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "Who approved the configuration change for nebula-proxy?",
+      "project": "atlas",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-13-scope",
+      "scenario": "scene-13",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "What is the configured listening port for nebula-proxy-sandbox in this project?",
+      "project": "atlas",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-18-same",
+      "scenario": "scene-18",
+      "split": "dev",
+      "category": "same-language",
+      "query": "spruce-runner 配置的任务截止时间是多少？",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-18"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-18"
+      ]
+    },
+    {
+      "id": "scene-18-cross",
+      "scenario": "scene-18",
+      "split": "dev",
+      "category": "cross-language",
+      "query": "What is the configured task deadline for spruce-runner?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "policy-fact-18"
+        ]
+      ],
+      "relevant_refs": [
+        "policy-fact-18"
+      ]
+    },
+    {
+      "id": "scene-18-missing",
+      "scenario": "scene-18",
+      "split": "dev",
+      "category": "missing-attribute",
+      "query": "Who approved the configuration change for spruce-runner?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    },
+    {
+      "id": "scene-18-scope",
+      "scenario": "scene-18",
+      "split": "dev",
+      "category": "answer-only-in-other-project",
+      "query": "What is the configured task deadline for spruce-runner-sandbox in this project?",
+      "project": "beacon",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "relevant_refs": []
+    }
+  ]
+}
