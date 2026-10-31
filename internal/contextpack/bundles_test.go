@@ -126,3 +126,57 @@ func TestRelationBundleHonorsItemBudgetAndMarksPartial(t *testing.T) {
 		t.Fatal(p.Text)
 	}
 }
+
+func TestExplicitArticleSpansAndHistoricalCorrections(t *testing.T) {
+	f := setup(t)
+	f.session("sources", "linux-box", "codex", "ended")
+	fact := "supermarket staging pool=6; production remains4"
+	f.event("sources", time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": fact})
+	factID := fmt.Sprintf("evt_ctx_%04d", f.n)
+	article := "文章：测试环境连接池为6。"
+	f.event("sources", 2*time.Hour, "source.document_captured", map[string]any{"content": article, "url": "https://example.invalid/design-v2", "complete": false})
+	articleID := fmt.Sprintf("evt_ctx_%04d", f.n)
+	ep := func(id, body string) evidence.Endpoint {
+		return evidence.Endpoint{EventID: id, Revision: evidence.SHA(body), Span: &evidence.Span{Start: 0, End: len(body), SHA: evidence.SHA(body)}}
+	}
+	assertion := evidence.Assertion{Relation: "derived_from", From: ep(factID, fact), To: ep(articleID, article), Witnesses: []evidence.Endpoint{ep(factID, fact)}, Basis: "explicit_assertion"}
+	raw, _ := json.Marshal(assertion)
+	var payload map[string]any
+	json.Unmarshal(raw, &payload)
+	f.event("sources", time.Hour, "evidence.link_asserted", payload)
+	captureEvidence(t, f)
+	req := contextpack.Request{Mode: contextpack.ModePrompt, Project: webapp, Query: "supermarket staging pool"}
+	h := replyHit(t, f, factID)
+	p, e := contextpack.BuildFromCandidates(evidence.WithPolicy(context.Background(), evidence.Policy{Mode: "on"}), f.db, owner, "linux-box", req, []model.SearchResult{h}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(p.Items) != 2 || len(p.EvidenceGroups) != 1 || !p.EvidenceGroups[0].Complete || !strings.Contains(p.Text, "design-v2") || !strings.Contains(p.Text, "availability=excerpt") {
+		t.Fatalf("article missing: %+v", p)
+	}
+	// Keep another attribute in the qualifying anchor, even when a correction
+	// refers only to its staging span. Retain dates and the old value for as-of.
+	old := "staging pool=8; production remains4"
+	f.event("sources", 2*time.Hour, "agent.turn_completed", map[string]any{"last_assistant_message": old})
+	oldID := fmt.Sprintf("evt_ctx_%04d", f.n)
+	a := assertion
+	a.Relation = "supersedes"
+	a.To = ep(oldID, old)
+	a.To.Span = &evidence.Span{Start: 0, End: len("staging pool=8"), SHA: evidence.SHA("staging pool=8")}
+	a.Scope = evidence.Scope{Entity: "supermarket", Attribute: "pool", Environment: "staging"}
+	raw, _ = json.Marshal(a)
+	json.Unmarshal(raw, &payload)
+	f.event("sources", time.Hour, "evidence.link_asserted", payload)
+	captureEvidence(t, f)
+	req.Query = "what was the supermarket production pool before the staging correction?"
+	p, e = contextpack.BuildFromCandidates(evidence.WithPolicy(context.Background(), evidence.Policy{Mode: "on"}), f.db, owner, "linux-box", req, []model.SearchResult{replyHit(t, f, oldID)}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(p.Items) != 2 || !strings.Contains(p.Text, "production remains4") || !strings.Contains(p.Text, "staging pool=8") || !strings.Contains(p.Text, "earlier value retained") {
+		t.Fatal(p.Text)
+	}
+	if len(p.EvidenceGroups) != 1 || p.EvidenceGroups[0].Links[0].Relation != "supersedes" {
+		t.Fatalf("%+v", p)
+	}
+}

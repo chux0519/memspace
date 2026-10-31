@@ -3,8 +3,10 @@ package contextpack
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -23,11 +25,12 @@ type EvidenceGroup struct {
 	Complete bool             `json:"complete"`
 }
 type EvidenceMember struct {
-	ObjectID     string `json:"object_id"`
-	Ref          string `json:"ref"`
-	Revision     string `json:"revision_sha"`
-	Availability string `json:"availability"`
-	Partial      bool   `json:"partial"`
+	ObjectID     string           `json:"object_id"`
+	Ref          string           `json:"ref"`
+	Revision     string           `json:"revision_sha"`
+	Availability string           `json:"availability"`
+	Partial      bool             `json:"partial"`
+	Spans        []*evidence.Span `json:"required_spans,omitempty"`
 }
 
 // relationSections forms direct, source-backed bundles before legacy role
@@ -64,16 +67,49 @@ func relationSections(ctx context.Context, db *sql.DB, owner, project, current s
 	// A group is anchored by an independently admitted hit. Native or complete
 	// source-order reply relationships are actionable; similarity is not one.
 	byID := map[string]evidence.Object{}
+	anchors := map[string]model.SearchResult{}
 	for _, o := range objects {
 		byID[o.ID] = o
 	}
+	for _, h := range hits {
+		if o, ok := objects[evidence.Seed{Kind: h.Kind, Ref: h.RefID}]; ok {
+			if _, exists := anchors[o.ID]; !exists {
+				anchors[o.ID] = h
+			}
+		}
+	}
 	valid := []evidence.Link{}
+	required := map[string][]string{}
+	spans := map[string][]*evidence.Span{}
 	for _, l := range links {
-		if l.Relation != "reply_to" || (l.Basis != "native_ref" && l.Basis != "ordered_source") {
+		var scope evidence.LinkScope
+		json.Unmarshal([]byte(l.Scope), &scope)
+		switch l.Relation {
+		case "reply_to":
+			if l.Basis != "native_ref" && l.Basis != "ordered_source" {
+				continue
+			}
+		case "derived_from":
+			if l.Basis != "explicit_assertion" || scope.FromSpan == nil || scope.ToSpan == nil {
+				continue
+			}
+		case "supersedes":
+			if l.Basis != "explicit_assertion" || scope.Scope.Entity == "" || scope.Scope.Attribute == "" || scope.Scope.Environment == "" || scope.FromSpan == nil || scope.ToSpan == nil {
+				continue
+			}
+		default:
 			continue
 		}
+		members := []string{l.From, l.To}
+		var witnesses []string
+		if l.Relation != "reply_to" {
+			if json.Unmarshal([]byte(l.Witnesses), &witnesses) != nil || len(witnesses) == 0 {
+				continue
+			}
+			members = append(members, witnesses...)
+		}
 		ok := true
-		for _, id := range []string{l.From, l.To} {
+		for _, id := range members {
 			if _, exists := byID[id]; !exists {
 				o, e := evidence.GetObject(ctx, db, owner, project, id)
 				if e != nil {
@@ -88,9 +124,19 @@ func relationSections(ctx context.Context, db *sql.DB, owner, project, current s
 				break
 			}
 		}
-		if ok && byID[l.From].Role == "reply" && byID[l.To].Role == "prompt" {
-			valid = append(valid, l)
+		if l.Relation == "reply_to" && (byID[l.From].Role != "reply" || byID[l.To].Role != "prompt") {
+			ok = false
 		}
+		if !ok {
+			continue
+		}
+		required[l.ID] = members
+		spans[l.From] = append(spans[l.From], scope.FromSpan)
+		spans[l.To] = append(spans[l.To], scope.ToSpan)
+		for _, w := range witnesses {
+			spans[w] = append(spans[w], scope.WitnessSpans[w])
+		}
+		valid = append(valid, l)
 	}
 	// Union endpoints sharing a prompt so one physical source is never counted
 	// twice. The traversal remains limited to direct edges of admitted seeds.
@@ -108,8 +154,10 @@ func relationSections(ctx context.Context, db *sql.DB, owner, project, current s
 		return parent[id]
 	}
 	for _, l := range valid {
-		a, b := root(l.From), root(l.To)
-		parent[a] = b
+		for _, id := range required[l.ID] {
+			a, b := root(id), root(l.From)
+			parent[a] = b
+		}
 	}
 	groups := map[string][]string{}
 	for id := range parent {
@@ -138,8 +186,20 @@ func relationSections(ctx context.Context, db *sql.DB, owner, project, current s
 		}
 		sort.Slice(members, func(i, j int) bool {
 			a, b := byID[members[i]], byID[members[j]]
-			if a.Role != b.Role {
-				return a.Role == "prompt"
+			roleRank := func(r string) int {
+				switch r {
+				case "prompt":
+					return 0
+				case "reply":
+					return 1
+				case "document":
+					return 2
+				default:
+					return 3
+				}
+			}
+			if roleRank(a.Role) != roleRank(b.Role) {
+				return roleRank(a.Role) < roleRank(b.Role)
 			}
 			if a.At != b.At {
 				return a.At < b.At
@@ -155,17 +215,69 @@ func relationSections(ctx context.Context, db *sql.DB, owner, project, current s
 				batch = nil
 				break
 			}
-			body = redact.String(body)
-			partial := utf8.RuneCountInString(body) > completeHistoryChars || obj.Availability != "full"
+			selectedSpans := spans[id]
+			originalBody := body
+			full := false
+			lo, hi := len(body), 0
+			for _, sp := range selectedSpans {
+				if sp == nil {
+					full = true
+					continue
+				}
+				if _, e = evidence.SpanText(body, sp); e != nil {
+					batch = nil
+					break
+				}
+				lo = min(lo, sp.Start)
+				hi = max(hi, sp.End)
+			}
+			if e != nil {
+				batch = nil
+				break
+			}
+			if !full && hi > lo {
+				body = body[lo:hi]
+			}
+			redacted := redact.String(body)
+			partial := redacted != body || utf8.RuneCountInString(redacted) > completeHistoryChars || (full && obj.Availability != "full")
+			body = redacted
+			if anchor, ok := anchors[id]; ok {
+				// The relation must not replace a query-relevant anchor window
+				// with another attribute or an unrelated part of a long source.
+				anchorText, err := historyContent(ctx, db, owner, project, anchor, strongHistoryHit(anchor, inject))
+				if err != nil || anchorText == "" {
+					batch = nil
+					break
+				}
+				body = anchorText
+				partial = utf8.RuneCountInString(originalBody) > completeHistoryChars || obj.Availability != "full"
+				for _, sp := range selectedSpans {
+					if sp != nil {
+						part, err := evidence.SpanText(originalBody, sp)
+						if err != nil || !strings.Contains(oneLine(body), oneLine(part)) {
+							partial = true
+						}
+					}
+				}
+			}
 			body = oneLine(evidenceWindow(body, ""))
 			group.Complete = group.Complete && !partial
-			group.Members = append(group.Members, EvidenceMember{ObjectID: id, Ref: obj.Ref, Revision: obj.Revision, Availability: obj.Availability, Partial: partial})
+			group.Members = append(group.Members, EvidenceMember{ObjectID: id, Ref: obj.Ref, Revision: obj.Revision, Availability: obj.Availability, Partial: partial, Spans: selectedSpans})
 			at, _ := time.Parse(time.RFC3339Nano, obj.At)
 			label := obj.Role
+			if obj.Kind == "document_snapshot" {
+				locator, err := evidence.DocumentLocator(ctx, db, owner, obj)
+				if err != nil {
+					batch = nil
+					break
+				}
+				raw, _ := json.Marshal(locator)
+				label += " source=" + string(raw)
+			}
 			if partial {
 				label += " excerpt"
 			}
-			batch = append(batch, section{item: Item{Key: "evidence:" + id, Kind: "history", Ref: obj.Ref, ProjectID: project, Device: h.DeviceName, Agent: h.AgentType, At: at}, text: fmt.Sprintf("- [%s; %s] %s (ref %s, version %s)\n", label, group.ID, body, obj.Ref, obj.Revision[:12]), group: group})
+			batch = append(batch, section{item: Item{Key: "evidence:" + id, Kind: "history", Ref: obj.Ref, ProjectID: project, Device: h.DeviceName, Agent: h.AgentType, At: at}, text: fmt.Sprintf("- [%s; %s; %s; availability=%s] %s (ref %s, version %s)\n", label, group.ID, obj.At, obj.Availability, body, obj.Ref, obj.Revision[:12]), group: group})
 		}
 		if len(batch) != len(members) {
 			observe(observer, TraceEvent{Stage: "evidence_bundle", Decision: "missing_or_stale"})
@@ -176,7 +288,18 @@ func relationSections(ctx context.Context, db *sql.DB, owner, project, current s
 				group.Links = append(group.Links, l)
 			}
 		}
-		batch[0].text = fmt.Sprintf("Evidence group %s: reply_to (%s); completeness=%t. Correspondence is not proof of correctness.\n", group.ID, group.Links[0].Basis, group.Complete) + batch[0].text
+		var labels []string
+		for _, l := range group.Links {
+			label := fmt.Sprintf("%s -> %s: %s (%s)", byID[l.From].Ref, byID[l.To].Ref, l.Relation, l.Basis)
+			if l.Relation == "supersedes" {
+				var scope evidence.LinkScope
+				json.Unmarshal([]byte(l.Scope), &scope)
+				b, _ := json.Marshal(scope.Scope)
+				label += " scoped to " + string(b) + "; earlier value retained for history/as-of queries"
+			}
+			labels = append(labels, label)
+		}
+		batch[0].text = fmt.Sprintf("Evidence group %s: %s; completeness=%t for required retained spans. Relations are assertions/provenance, not truth verification.\n", group.ID, strings.Join(labels, "; "), group.Complete) + batch[0].text
 		out = append(out, batch...)
 		for _, id := range members {
 			claimed[byID[id].Ref] = true

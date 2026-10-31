@@ -401,9 +401,10 @@ func main() {
 	modelName := flag.String("model", "BAAI/bge-m3", "embedding model")
 	mode := flag.String("mode", "context_pack", "context_pack or search")
 	flag.StringVar(&evidenceMode, "evidence-mode", "off", "off, shadow or on")
+	evidenceLimit := flag.Int("evidence-max-related", 24, "direct relation work bound, 1..512")
 	flag.Parse()
 	log.SetOutput(os.Stderr)
-	en, err := open(*dir, *key, *url, *modelName, *mode, evidence.Policy{Mode: evidenceMode})
+	en, err := open(*dir, *key, *url, *modelName, *mode, evidence.Policy{Mode: evidenceMode, MaxRelated: *evidenceLimit})
 	if err == nil {
 		defer en.d.Close()
 		err = run(os.Stdin, os.Stdout, en)

@@ -55,6 +55,9 @@ var migration014 string
 //go:embed migrations/015_evidence.sql
 var migration015 string
 
+//go:embed migrations/016_evidence_assertions.sql
+var migration016 string
+
 func migrate(db *sql.DB) error {
 	// Bootstrap tracking table first.
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -84,6 +87,7 @@ func migrate(db *sql.DB) error {
 		{"013_device_upgrades", migration013},
 		{"014_english_stemming", migration014},
 		{"015_evidence", migration015},
+		{"016_evidence_assertions", migration016},
 	}
 
 	for _, m := range migrations {

@@ -104,6 +104,9 @@ func journal(ctx context.Context, tx *sql.Tx, project, actor, eventID, kind stri
 	return id, e
 }
 func storeLink(ctx context.Context, tx *sql.Tx, project, relation, from, to, basis, status, scope string, witnesses []string) (Link, error) {
+	return storeLinkBy(ctx, tx, project, relation, from, to, basis, status, scope, witnesses, "server_rule", "")
+}
+func storeLinkBy(ctx context.Context, tx *sql.Tx, project, relation, from, to, basis, status, scope string, witnesses []string, actor, eventID string) (Link, error) {
 	if from == to {
 		return Link{}, errors.New("self evidence link")
 	}
@@ -117,7 +120,7 @@ func storeLink(ctx context.Context, tx *sql.Tx, project, relation, from, to, bas
 	w, _ := json.Marshal(witnesses)
 	id := stable("evl", project, relation, from, to, scope)
 	l := Link{ID: id, Project: project, Relation: relation, From: from, To: to, Basis: basis, Status: status, Rule: ruleVersion, Scope: scope, Witnesses: string(w)}
-	record, e := journal(ctx, tx, project, "server_rule", "", "link_asserted", l)
+	record, e := journal(ctx, tx, project, actor, eventID, "link_asserted", l)
 	if e != nil {
 		return l, e
 	}
@@ -137,6 +140,9 @@ func IndexEvent(ctx context.Context, tx *sql.Tx, id string) error {
 	err := tx.QueryRowContext(ctx, `SELECT project_id,coalesce(session_id,''),device_id,event_type,payload_json,occurred_at FROM events WHERE event_id=?`, id).Scan(&project, &session, &device, &typ, &payload, &at)
 	if err != nil {
 		return err
+	}
+	if typ == "evidence.link_asserted" || typ == "evidence.link_retracted" {
+		return indexAssertion(ctx, tx, id, project, typ, payload)
 	}
 	var p map[string]json.RawMessage
 	if json.Unmarshal([]byte(payload), &p) != nil {
@@ -204,6 +210,12 @@ func IndexEvent(ctx context.Context, tx *sql.Tx, id string) error {
 		}
 	}
 	if err = storeObject(ctx, tx, o); err != nil {
+		return err
+	}
+	if err = reconcileInputs(ctx, tx, project, id); err != nil {
+		return err
+	}
+	if err = reconcileInputs(ctx, tx, project, o.ID); err != nil {
 		return err
 	}
 	if session == "" || (role != "prompt" && role != "reply" && o.Batch == "") {
@@ -298,8 +310,28 @@ func reconcileObject(ctx context.Context, tx *sql.Tx, changed Object) error {
 		}
 		matches := prompts[key]
 		if len(matches) > 1 {
-			if _, e = tx.ExecContext(ctx, `UPDATE evidence_links SET status='candidate' WHERE project_id=? AND relation='reply_to' AND from_object_id=? AND basis='native_ref'`, project, o.ID); e != nil {
-				return e
+			rows, err := tx.QueryContext(ctx, `SELECT `+linkCols+` FROM evidence_links WHERE project_id=? AND relation='reply_to' AND from_object_id=? AND basis='native_ref'`, project, o.ID)
+			if err != nil {
+				return err
+			}
+			var previous []Link
+			for rows.Next() {
+				l, err := scanLink(rows)
+				if err != nil {
+					rows.Close()
+					return err
+				}
+				previous = append(previous, l)
+			}
+			err = rows.Err()
+			rows.Close()
+			if err != nil {
+				return err
+			}
+			for _, l := range previous {
+				if _, e = storeLink(ctx, tx, project, l.Relation, l.From, l.To, l.Basis, "candidate", l.Scope, []string{o.ID}); e != nil {
+					return e
+				}
 			}
 			continue
 		}
@@ -361,11 +393,17 @@ func RecordDerived(ctx context.Context, tx *sql.Tx, d Derived) error {
 		Session string `json:"session_id"`
 		At      string `json:"occurred_at"`
 	}{payload, d.Kind, d.Ref, d.Session, d.At.UTC().Format(time.RFC3339Nano)}
-	record, e := journal(ctx, tx, d.Project, "server_rule", "", d.Kind+".revision_created", snapshot)
+	objectID := stable("evo", d.Project, d.Kind, d.Ref, revision)
+	var record, firstAt string
+	e := tx.QueryRowContext(ctx, `SELECT source_id,occurred_at FROM evidence_objects WHERE object_id=? AND project_id=?`, objectID, d.Project).Scan(&record, &firstAt)
+	if errors.Is(e, sql.ErrNoRows) {
+		record, e = journal(ctx, tx, d.Project, "server_rule", "", d.Kind+".revision_created", snapshot)
+		firstAt = d.At.UTC().Format(time.RFC3339Nano)
+	}
 	if e != nil {
 		return e
 	}
-	o := Object{ID: stable("evo", d.Project, d.Kind, d.Ref, revision), Project: d.Project, Kind: d.Kind, Ref: d.Ref, Revision: revision, BodySHA: SHA(payload.Content), SourceKind: "record", SourceID: record, Field: "content", Availability: "full", Session: d.Session, At: d.At.UTC().Format(time.RFC3339Nano)}
+	o := Object{ID: objectID, Project: d.Project, Kind: d.Kind, Ref: d.Ref, Revision: revision, BodySHA: SHA(payload.Content), SourceKind: "record", SourceID: record, Field: "content", Availability: "full", Session: d.Session, At: firstAt}
 	var previous string
 	err := tx.QueryRowContext(ctx, `SELECT object_id FROM evidence_objects WHERE project_id=? AND kind=? AND ref_id=? AND is_current=1`, d.Project, d.Kind, d.Ref).Scan(&previous)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -384,6 +422,9 @@ func RecordDerived(ctx context.Context, tx *sql.Tx, d Derived) error {
 		return e
 	}
 	if _, e = tx.ExecContext(ctx, `UPDATE evidence_objects SET is_current=1 WHERE object_id=?`, o.ID); e != nil {
+		return e
+	}
+	if e = reconcileInputs(ctx, tx, d.Project, o.ID); e != nil {
 		return e
 	}
 	for _, ref := range d.Sources {
@@ -420,6 +461,14 @@ func RecordDerived(ctx context.Context, tx *sql.Tx, d Derived) error {
 
 // Text resolves the exact stored source version and validates the content hash.
 func Text(ctx context.Context, db *sql.DB, owner string, o Object) (string, error) {
+	return textFrom(ctx, db, owner, o)
+}
+
+type sourceReader interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func textFrom(ctx context.Context, db sourceReader, owner string, o Object) (string, error) {
 	var allowed int
 	if e := db.QueryRowContext(ctx, `SELECT count(*) FROM projects WHERE project_id=? AND user_id=?`, o.Project, owner).Scan(&allowed); e != nil {
 		return "", e

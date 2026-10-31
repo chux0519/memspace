@@ -95,6 +95,8 @@ func NewWithOptions(db *sql.DB, ownerUserID string, opts Options) http.Handler {
 		r.Get("/api/v1/sessions/{id}", handler.GetSessionHandler(db, ownerUserID))
 		r.Get("/api/v1/sessions/{id}/events", handler.SessionEventsHandler(db, ownerUserID))
 		r.Get("/api/v1/events/{id}", handler.EventHandler(db, ownerUserID))
+		r.Get("/api/v1/evidence/{id}", handler.EvidenceHandler(db, ownerUserID))
+		r.Get("/api/v1/evidence/assertions/{id}", handler.EvidenceAssertionHandler(db, ownerUserID))
 		r.Get("/api/v1/memories", handler.MemoriesHandler(db, ownerUserID))
 		r.Get("/api/v1/memories/{id}", handler.MemoryHandler(db, ownerUserID))
 		r.Post("/api/v1/search", handler.Search(db, ownerUserID))

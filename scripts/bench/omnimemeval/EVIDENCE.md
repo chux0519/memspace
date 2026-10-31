@@ -2,8 +2,9 @@
 
 `[evidence] mode = "off"` is the default. `shadow` captures native message/turn
 references and the production generator's actual `source_refs`, preserving
-context output. `on` is reserved for the relation packing stage; do not use it
-as a claim of measured quality before its own validation. `max_related_nodes`
+context output. `on` enables validated source bundles; it is experimental and does not imply
+a measured quality improvement. See `internal/evidence/README.md` for explicit
+source spans, scoped corrections, retractions and the inspection endpoint. `max_related_nodes`
 defaults to 24 (the existing candidate hydration bound); values 1..512 are an
 engineering resource limit, not a fitted relevance threshold. Zero uses 24.
 
