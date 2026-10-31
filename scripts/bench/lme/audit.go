@@ -73,7 +73,8 @@ func auditCacheCmd(args []string) error {
 	}
 	defer rows.Close()
 	present := map[string]bool{}
-	redactedExtra, unknown, badDimensions := 0, 0, 0
+	probe := hex.EncodeToString(hash("memspace probe")) // embedding.Client.Describe
+	redactedExtra, probeExtra, unknown, badDimensions := 0, 0, 0, 0
 	for rows.Next() {
 		var key []byte
 		var bytes int
@@ -86,7 +87,9 @@ func auditCacheCmd(args []string) error {
 			badDimensions++
 		}
 		if !raw[h] && !queries[h] {
-			if actual[h] {
+			if h == probe {
+				probeExtra++
+			} else if actual[h] {
 				redactedExtra++
 			} else {
 				unknown++
@@ -110,7 +113,8 @@ func auditCacheCmd(args []string) error {
 		"query_unique": len(queries), "api_redacted_source_unique": len(actual),
 		"missing_raw_sources": missing(raw), "missing_queries": missing(queries),
 		"missing_api_sources": missing(actual), "extra_from_api_redaction": redactedExtra,
-		"unclassified_extra": unknown, "wrong_dimensions": badDimensions,
+		"extra_from_service_probe": probeExtra,
+		"unclassified_extra":       unknown, "wrong_dimensions": badDimensions,
 		"scope": "SHA256 text coverage and 1024 float32 dimensions; no inference or vector recomputation",
 	}
 	if err = benchutil.JSON(*out, audit); err != nil {
