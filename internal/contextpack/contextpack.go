@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/chux0519/memspace/internal/admission"
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/prompt"
 	"github.com/chux0519/memspace/internal/redact"
@@ -85,16 +86,18 @@ type Item struct {
 
 // Pack is the result. Text is empty when there is nothing worth injecting.
 type Pack struct {
-	Text      string `json:"text"`
-	Items     []Item `json:"items"`
-	Truncated bool   `json:"truncated"`
-	ProjectID string `json:"project_id,omitempty"`
-	Note      string `json:"note,omitempty"`
+	EvidenceGroups []EvidenceGroup `json:"evidence_groups,omitempty"`
+	Text           string          `json:"text"`
+	Items          []Item          `json:"items"`
+	Truncated      bool            `json:"truncated"`
+	ProjectID      string          `json:"project_id,omitempty"`
+	Note           string          `json:"note,omitempty"`
 }
 
 var continuationRE = regexp.MustCompile(`(?i)继续|接着|接上|上次|之前(没|未)?(做|完成|的)|刚才|没做完|未完成|resume|continue|pick up|carry on|where (we|i) left|last (time|session)|previous (session|work)`)
 
 type section struct {
+	group    *EvidenceGroup
 	item     Item
 	priority int // higher is kept longer
 	text     string
@@ -136,6 +139,9 @@ func observedBuild(ctx context.Context, db *sql.DB, owner, deviceID string, req 
 
 func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request, observer Observer, replay *model.SearchResponse) (*Pack, error) {
 	if err := admission.FromContext(ctx).Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", search.ErrBadRequest, err)
+	}
+	if err := evidence.FromContext(ctx).Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", search.ErrBadRequest, err)
 	}
 	pack := &Pack{Items: []Item{}}
@@ -180,10 +186,8 @@ func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request,
 			return err
 		}
 		for i, h := range hits {
-			if !exclude[h.item.Key] {
-				h.priority = priority - i
-				sections = append(sections, h)
-			}
+			h.priority = priority - i
+			sections = append(sections, h)
 		}
 		return nil
 	}
@@ -227,10 +231,13 @@ func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request,
 	default:
 		return nil, fmt.Errorf("%w: unknown mode %q", search.ErrBadRequest, req.Mode)
 	}
-	if opts, ok := ctx.Value(buildOptionsKey{}).(BuildOptions); ok && opts.MaxItems > 0 && len(sections) > opts.MaxItems {
-		sections = sections[:opts.MaxItems]
-		pack.Truncated = true
+	maxItems := 0
+	if opts, ok := ctx.Value(buildOptionsKey{}).(BuildOptions); ok {
+		maxItems = opts.MaxItems
 	}
+	var omitted bool
+	sections, omitted = boundSections(sections, maxItems, exclude)
+	pack.Truncated = pack.Truncated || omitted
 	budget = min(budget, HardLimit)
 	if observer != nil {
 		var items []Item
@@ -405,7 +412,25 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 		return nil, err
 	}
 	admitted := admittedHistoryHits(resp.Results, current, policy)
+	anchors := append([]model.SearchResult(nil), admitted...)
 	observe(observer, TraceEvent{Stage: "admitted", Hits: admitted})
+	bundled, claimed, bundleErr := relationSections(ctx, db, owner, projectID, current, admitted, limit, inject, observer)
+	if bundleErr != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		observe(observer, TraceEvent{Stage: "evidence", Decision: "fallback", Note: bundleErr.Error()})
+	}
+	out = append(out, bundled...)
+	if len(claimed) > 0 {
+		remaining := admitted[:0:0]
+		for _, h := range admitted {
+			if !claimed[h.RefID] {
+				remaining = append(remaining, h)
+			}
+		}
+		admitted = remaining
+	}
 	ordered := orderHistoryHits(admitted)
 	if preserve, _ := ctx.Value(evidenceReplayKey{}).(bool); preserve {
 		ordered = admitted
@@ -448,9 +473,12 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 				Device: h.DeviceName, Agent: h.AgentType, At: h.OccurredAt},
 			text: text,
 		})
-		if len(out) >= limit {
+		if len(bundled) == 0 && len(out) >= limit {
 			break
 		}
+	}
+	if len(bundled) > 0 {
+		out = mergeEvidenceSections(out, anchors, limit)
 	}
 	observe(observer, TraceEvent{Stage: "selected", Hits: selected})
 	return out, nil
@@ -490,7 +518,7 @@ func render(pack *Pack, sections []section, budget int) {
 		}
 		b.WriteString("</memspace_context>\n")
 		text := b.String()
-		if utf8.RuneCountInString(text) <= budget || len(keep) == 1 {
+		if utf8.RuneCountInString(text) <= budget || len(keep) == 1 && keep[0].group == nil {
 			if utf8.RuneCountInString(text) > budget { // one oversized item: cut it
 				text = string([]rune(text)[:budget-30]) + "\n…\n</memspace_context>\n"
 				pack.Truncated = true
@@ -498,6 +526,18 @@ func render(pack *Pack, sections []section, budget int) {
 			pack.Text = text
 			for _, s := range keep {
 				pack.Items = append(pack.Items, s.item)
+				if s.group != nil {
+					found := false
+					for _, g := range pack.EvidenceGroups {
+						if g.ID == s.group.ID {
+							found = true
+							break
+						}
+					}
+					if !found {
+						pack.EvidenceGroups = append(pack.EvidenceGroups, *s.group)
+					}
+				}
 			}
 			pack.Truncated = pack.Truncated || len(keep) < len(sections)
 			return
@@ -509,7 +549,22 @@ func render(pack *Pack, sections []section, budget int) {
 				low = i
 			}
 		}
-		keep = append(keep[:low], keep[low+1:]...)
+		if keep[low].group != nil {
+			id := keep[low].group.ID
+			next := keep[:0:0]
+			for _, s := range keep {
+				if s.group == nil || s.group.ID != id {
+					next = append(next, s)
+				}
+			}
+			keep = next
+		} else {
+			keep = append(keep[:low], keep[low+1:]...)
+		}
+		if len(keep) == 0 {
+			pack.Truncated = true
+			return
+		}
 	}
 }
 
