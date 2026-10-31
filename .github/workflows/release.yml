@@ -9,15 +9,26 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build without moving it
+        required: true
+        type: string
 
 permissions:
   contents: read
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
   clients:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -34,11 +45,11 @@ jobs:
         run: |
           got=$("$RUNNER_TEMP/dist/memspace-linux-amd64" --version)
           echo "$got"
-          [ "$got" = "memspace version $GITHUB_REF_NAME" ]
+          [ "$got" = "memspace version $RELEASE_TAG" ]
           for f in "$RUNNER_TEMP"/dist/*; do
             v=$(go version -m "$f" | awk '$1 == "mod" { print $3 }')
             echo "$f $v"
-            [ "$v" = "$GITHUB_REF_NAME" ]
+            [ "$v" = "$RELEASE_TAG" ]
           done
       - uses: actions/upload-artifact@v4
         with:
@@ -53,24 +64,31 @@ jobs:
           # 22.04: glibc 2.35, so the binary runs on Debian 12 and newer.
           - { runner: ubuntu-22.04, os: linux, arch: amd64 }
           - { runner: ubuntu-22.04-arm, os: linux, arch: arm64 }
-          - { runner: macos-14, os: darwin, arch: arm64 }
+          - { runner: macos-15, os: darwin, arch: arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Test
         run: CGO_ENABLED=1 go test -tags sqlite_fts5 -short -count=1 ./...
       - name: Build
+        env:
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
         run: |
+          [ "$(go env GOOS)" = "$EXPECTED_OS" ]
+          [ "$(go env GOARCH)" = "$EXPECTED_ARCH" ]
           mkdir -p "$RUNNER_TEMP/dist"
           CGO_ENABLED=1 go build -tags sqlite_fts5 -trimpath -o "$RUNNER_TEMP/dist/memspace-server-${{ matrix.os }}-${{ matrix.arch }}" ./cmd/memspace
       - name: Check the version
         run: |
           got=$("$RUNNER_TEMP/dist/memspace-server-${{ matrix.os }}-${{ matrix.arch }}" --version)
           echo "$got"
-          [ "$got" = "memspace version $GITHUB_REF_NAME" ]
+          [ "$got" = "memspace version $RELEASE_TAG" ]
       - uses: actions/upload-artifact@v4
         with:
           name: server-${{ matrix.os }}-${{ matrix.arch }}
@@ -83,6 +101,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -100,5 +120,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           flags=
-          case "$GITHUB_REF_NAME" in *-*) flags=--prerelease ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --title "MemSpace $GITHUB_REF_NAME" $flags
+          case "$RELEASE_TAG" in *-*) flags=--prerelease ;; esac
+          gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --title "MemSpace $RELEASE_TAG" $flags
