@@ -29,17 +29,19 @@ import (
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/search"
 	"github.com/chux0519/memspace/internal/summary"
+	"github.com/chux0519/memspace/scripts/bench/benchutil"
 )
 
 const owner = "benchmark-owner"
 const device = "benchmark-device"
 
 type document struct {
-	ID       string `json:"id"`
-	Project  string `json:"project"`
-	Session  string `json:"session"`
-	Text     string `json:"text"`
-	Evidence string `json:"evidence"`
+	ID        string `json:"id"`
+	Project   string `json:"project"`
+	Session   string `json:"session"`
+	Text      string `json:"text"`
+	Evidence  string `json:"evidence"`
+	EventType string `json:"event_type,omitempty"`
 }
 type question struct {
 	ID           string     `json:"id"`
@@ -54,6 +56,7 @@ type question struct {
 	RelevantRefs []string   `json:"relevant_refs,omitempty"`
 }
 type corpus struct {
+	RawTurns  bool       `json:"raw_turns,omitempty"`
 	Version   string     `json:"version"`
 	Projects  []string   `json:"projects"`
 	Documents []document `json:"documents"`
@@ -394,13 +397,28 @@ func seed(ctx context.Context, d *sql.DB, c corpus, work string) (map[string]doc
 		if err = tx.QueryRowContext(ctx, `SELECT agent_type FROM sessions WHERE session_id=?`, doc.Session).Scan(&agent); err != nil {
 			return nil, nil, err
 		}
-		payload, _ := json.Marshal(map[string]string{"last_assistant_message": doc.Text})
-		if err = run(`INSERT INTO events(event_id,session_id,project_id,device_id,event_type,occurred_at,received_at,payload_json) VALUES (?,?,?,?,'agent.turn_completed',?,?,?)`, doc.ID, doc.Session, doc.Project, dev, now, now, string(payload)); err != nil {
+		typ, key, eventAt := "agent.turn_completed", "last_assistant_message", anchor
+		if c.RawTurns {
+			typ = doc.EventType
+			if typ != "user.prompt" && typ != "agent.turn_completed" {
+				return nil, nil, fmt.Errorf("invalid raw turn event type %q", typ)
+			}
+			if typ == "user.prompt" {
+				key = "prompt"
+			}
+			eventAt = anchor.Add(time.Duration(i) * time.Second)
+		}
+		payload, _ := json.Marshal(map[string]string{key: doc.Text})
+		if err = run(`INSERT INTO events(event_id,session_id,project_id,device_id,event_type,occurred_at,received_at,payload_json) VALUES (?,?,?,?,?,?,?,?)`, doc.ID, doc.Session, doc.Project, dev, typ, model.FormatTime(eventAt), now, string(payload)); err != nil {
 			return nil, nil, err
 		}
-		err = search.IndexEvent(ctx, tx, search.Event{EventID: doc.ID, EventType: "agent.turn_completed", ProjectID: doc.Project, SessionID: doc.Session, DeviceID: dev, AgentType: agent, OccurredAt: anchor, Payload: payload})
+		err = search.IndexEvent(ctx, tx, search.Event{EventID: doc.ID, EventType: typ, ProjectID: doc.Project, SessionID: doc.Session, DeviceID: dev, AgentType: agent, OccurredAt: eventAt, Payload: payload})
 		if err != nil {
 			return nil, nil, err
+		}
+		if c.RawTurns {
+			docs[doc.ID] = doc
+			continue
 		}
 		promptID := "prompt-" + doc.ID
 		promptText := "请记录本次编码任务的进展"
@@ -443,6 +461,7 @@ func run() error {
 	focused := flag.Bool("focused", false, "allow a small focused regression fixture outside the default 50–100 questions")
 	policyPath := flag.String("admission-policy", "", "optional policy JSON; qualification only")
 	relevancePath := flag.String("relevance-labels", "", "optional SHA-bound exhaustive relevance judgments for a subset of questions")
+	exportMechanisms := flag.Bool("export-mechanisms", false, "export fixed production candidates and scoped dialogue windows; quality only")
 	flag.Parse()
 	var policy admission.Policy
 	if *policyPath != "" {
@@ -497,7 +516,7 @@ func run() error {
 	}
 	sourceCopies := map[string][]byte{}
 	sourceHashes := map[string]string{}
-	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "scripts/bench/retrieval/relevance.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/model/model.go", "internal/admission/policy.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
+	for _, path := range []string{"scripts/bench/retrieval/main.go", "scripts/bench/retrieval/diagnostics.go", "scripts/bench/retrieval/frozen.go", "scripts/bench/retrieval/candidates.go", "scripts/bench/retrieval/relevance.go", "internal/contextpack/contextpack.go", "internal/contextpack/history.go", "internal/contextpack/dialogue.go", "scripts/bench/benchutil/mechanisms.go", "scripts/bench/retrieval/mechanisms.go", "internal/model/model.go", "internal/admission/policy.go", "internal/search/query.go", "internal/prompt/recall.go", "internal/inject/inject.go", "internal/embedding/client.go", "internal/embedding/service.go", "go.mod", "go.sum"} {
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return e
@@ -586,6 +605,19 @@ func run() error {
 		if err = exportCandidates(ctx, d, c, *candidateDepths, *out); err != nil {
 			return err
 		}
+	}
+	if *exportMechanisms {
+		if err = exportMechanismCases(ctx, d, c, docs, filepath.Join(work, "bench.db"), *out); err != nil {
+			return err
+		}
+		manifest := benchutil.Manifest()
+		manifest["corpus_sha256"] = hex.EncodeToString(corpusHash[:])
+		manifest["source_sha256"] = sourceHashes
+		manifest["embedding"] = status
+		if err = benchutil.JSON(filepath.Join(*out, "manifest.json"), manifest); err != nil {
+			return err
+		}
+		return benchutil.JSON(filepath.Join(*out, "corpus.json"), c)
 	}
 	if *diagnosticOnly {
 		return diagnose(ctx, d, c, docs, *out)

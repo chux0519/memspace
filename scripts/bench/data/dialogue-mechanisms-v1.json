@@ -1,0 +1,1055 @@
+{
+  "version": "dialogue-mechanisms-v1",
+  "raw_turns": true,
+  "projects": [
+    "dialogue-probes"
+  ],
+  "documents": [
+    {
+      "id": "supermarket-condition",
+      "project": "dialogue-probes",
+      "session": "supermarket",
+      "text": "Only change the supermarket staging connection pool. Production must remain 4.",
+      "evidence": "staging connection pool",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "supermarket-reply",
+      "project": "dialogue-probes",
+      "session": "supermarket",
+      "text": "Set it to 8.",
+      "evidence": "Set it to 8.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "supermarket-correction",
+      "project": "dialogue-probes",
+      "session": "supermarket",
+      "text": "Correction: staging should be 6. Leave production unchanged.",
+      "evidence": "6",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "supermarket-ack",
+      "project": "dialogue-probes",
+      "session": "supermarket",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "checkout-condition",
+      "project": "dialogue-probes",
+      "session": "checkout",
+      "text": "结账服务只改沙箱的重试次数，正式环境仍是 2 次。",
+      "evidence": "沙箱",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "checkout-reply",
+      "project": "dialogue-probes",
+      "session": "checkout",
+      "text": "已经设为 5 次。",
+      "evidence": "已经设为 5 次。",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "checkout-correction",
+      "project": "dialogue-probes",
+      "session": "checkout",
+      "text": "补充更正：沙箱改为 3 次，正式环境不动。",
+      "evidence": "3 次",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "checkout-ack",
+      "project": "dialogue-probes",
+      "session": "checkout",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "auth-condition",
+      "project": "dialogue-probes",
+      "session": "auth",
+      "text": "For auth refresh tokens, change the test TTL only; production TTL stays 900 seconds.",
+      "evidence": "test",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "auth-reply",
+      "project": "dialogue-probes",
+      "session": "auth",
+      "text": "Updated to 120 seconds.",
+      "evidence": "Updated to 120 seconds.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "auth-correction",
+      "project": "dialogue-probes",
+      "session": "auth",
+      "text": "Correction: use 180 seconds in test, production stays unchanged.",
+      "evidence": "180 seconds",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "auth-ack",
+      "project": "dialogue-probes",
+      "session": "auth",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "billing-condition",
+      "project": "dialogue-probes",
+      "session": "billing",
+      "text": "账单任务仅在预发布调批大小，线上保持 20。",
+      "evidence": "预发布",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "billing-reply",
+      "project": "dialogue-probes",
+      "session": "billing",
+      "text": "已改成 50。",
+      "evidence": "已改成 50。",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "billing-correction",
+      "project": "dialogue-probes",
+      "session": "billing",
+      "text": "更正：预发布批大小应为 35，线上照旧。",
+      "evidence": "35",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "billing-ack",
+      "project": "dialogue-probes",
+      "session": "billing",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "search-condition",
+      "project": "dialogue-probes",
+      "session": "search",
+      "text": "Search canary index only: alter shard count. The main index stays at 12.",
+      "evidence": "canary",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "search-reply",
+      "project": "dialogue-probes",
+      "session": "search",
+      "text": "Set to 3 shards.",
+      "evidence": "Set to 3 shards.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "search-correction",
+      "project": "dialogue-probes",
+      "session": "search",
+      "text": "Correction: canary needs 4 shards; main index is unchanged.",
+      "evidence": "4 shards",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "search-ack",
+      "project": "dialogue-probes",
+      "session": "search",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "cache-condition",
+      "project": "dialogue-probes",
+      "session": "cache",
+      "text": "缓存只调整开发环境过期时间，线上维持 600 秒。",
+      "evidence": "开发环境",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "cache-reply",
+      "project": "dialogue-probes",
+      "session": "cache",
+      "text": "已调为 30 秒。",
+      "evidence": "已调为 30 秒。",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "cache-correction",
+      "project": "dialogue-probes",
+      "session": "cache",
+      "text": "修正：开发环境用 45 秒，线上不改。",
+      "evidence": "45 秒",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "cache-ack",
+      "project": "dialogue-probes",
+      "session": "cache",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "mobile-condition",
+      "project": "dialogue-probes",
+      "session": "mobile",
+      "text": "For mobile uploads change WiFi test chunk size only; cellular remains 256 KB.",
+      "evidence": "WiFi test",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "mobile-reply",
+      "project": "dialogue-probes",
+      "session": "mobile",
+      "text": "Set to 1024 KB.",
+      "evidence": "Set to 1024 KB.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "mobile-correction",
+      "project": "dialogue-probes",
+      "session": "mobile",
+      "text": "Correction: WiFi test should use 768 KB. Cellular stays unchanged.",
+      "evidence": "768 KB",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "mobile-ack",
+      "project": "dialogue-probes",
+      "session": "mobile",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "analytics-condition",
+      "project": "dialogue-probes",
+      "session": "analytics",
+      "text": "分析管道只改欧洲测试分区的并发，美国生产分区保持 10。",
+      "evidence": "欧洲测试分区",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "analytics-reply",
+      "project": "dialogue-probes",
+      "session": "analytics",
+      "text": "已经设成 16。",
+      "evidence": "已经设成 16。",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "analytics-correction",
+      "project": "dialogue-probes",
+      "session": "analytics",
+      "text": "更正：欧洲测试分区并发设 14，美国生产不变。",
+      "evidence": "14",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "analytics-ack",
+      "project": "dialogue-probes",
+      "session": "analytics",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "queue-condition",
+      "project": "dialogue-probes",
+      "session": "queue",
+      "text": "Only the email sandbox queue gets a new visibility timeout; live queue stays at 60 seconds.",
+      "evidence": "sandbox",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "queue-reply",
+      "project": "dialogue-probes",
+      "session": "queue",
+      "text": "Changed to 15 seconds.",
+      "evidence": "Changed to 15 seconds.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "queue-correction",
+      "project": "dialogue-probes",
+      "session": "queue",
+      "text": "Correction: use 25 seconds for sandbox, leave live alone.",
+      "evidence": "25 seconds",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "queue-ack",
+      "project": "dialogue-probes",
+      "session": "queue",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "compiler-condition",
+      "project": "dialogue-probes",
+      "session": "compiler",
+      "text": "编译器只给实验目标更改优化等级，稳定目标仍是 O2。",
+      "evidence": "实验目标",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "compiler-reply",
+      "project": "dialogue-probes",
+      "session": "compiler",
+      "text": "已改成 O0。",
+      "evidence": "已改成 O0。",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "compiler-correction",
+      "project": "dialogue-probes",
+      "session": "compiler",
+      "text": "更正：实验目标用 O1，稳定目标不动。",
+      "evidence": "O1",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "compiler-ack",
+      "project": "dialogue-probes",
+      "session": "compiler",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "storage-condition",
+      "project": "dialogue-probes",
+      "session": "storage",
+      "text": "Storage replica change applies only to the lab bucket. Customer bucket remains at 3 replicas.",
+      "evidence": "lab",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "storage-reply",
+      "project": "dialogue-probes",
+      "session": "storage",
+      "text": "Changed to 1 replica.",
+      "evidence": "Changed to 1 replica.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "storage-correction",
+      "project": "dialogue-probes",
+      "session": "storage",
+      "text": "Correction: lab needs 2 replicas; customer bucket stays unchanged.",
+      "evidence": "2 replicas",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "storage-ack",
+      "project": "dialogue-probes",
+      "session": "storage",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "scheduler-condition",
+      "project": "dialogue-probes",
+      "session": "scheduler",
+      "text": "调度器只改离线测试任务的间隔，在线任务保持 60 分钟。",
+      "evidence": "离线测试",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "scheduler-reply",
+      "project": "dialogue-probes",
+      "session": "scheduler",
+      "text": "已调为 10 分钟。",
+      "evidence": "已调为 10 分钟。",
+      "event_type": "agent.turn_completed"
+    },
+    {
+      "id": "scheduler-correction",
+      "project": "dialogue-probes",
+      "session": "scheduler",
+      "text": "修正：离线测试间隔设为 15 分钟，在线任务不变。",
+      "evidence": "15 分钟",
+      "event_type": "user.prompt"
+    },
+    {
+      "id": "scheduler-ack",
+      "project": "dialogue-probes",
+      "session": "scheduler",
+      "text": "Acknowledged.",
+      "evidence": "Acknowledged.",
+      "event_type": "agent.turn_completed"
+    }
+  ],
+  "questions": [
+    {
+      "id": "supermarket-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "supermarket staging connection pool 的初次调整值和适用环境是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "supermarket-condition"
+        ],
+        [
+          "supermarket-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "supermarket-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "What is the corrected supermarket staging pool size?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "supermarket-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "supermarket-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "supermarket 哪个环境必须保持 4？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "supermarket-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "supermarket-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "Who approved the supermarket staging pool change?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "checkout-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "What was the first checkout retry change and which environment did it apply to?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "checkout-condition"
+        ],
+        [
+          "checkout-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "checkout-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "结账沙箱最后改成几次重试？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "checkout-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "checkout-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "Which checkout environment must retain two retries?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "checkout-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "checkout-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "结账沙箱重试变更是谁批准的？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "auth-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "认证 refresh token 初次改了什么值、哪个环境？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "auth-condition"
+        ],
+        [
+          "auth-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "auth-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "What is the corrected test refresh token TTL?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "auth-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "auth-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "认证 token 哪个环境维持 900 秒？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "auth-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "auth-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "Which security ticket approved the test TTL change?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "billing-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "What was the initial billing batch size change and its scope?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "billing-condition"
+        ],
+        [
+          "billing-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "billing-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "账单预发布批大小最终是多少？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "billing-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "billing-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "Which billing environment keeps batch size 20?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "billing-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "billing-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "账单批大小调整的审批单号是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "search-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "搜索分片第一次调整的值和适用索引是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "search-condition"
+        ],
+        [
+          "search-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "search-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "What shard count did the canary correction require?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "search-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "search-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "搜索哪个索引保持 12 个分片？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "search-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "search-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "Which incident required the canary shard change?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "cache-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "What cache expiry value was initially set and where?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "cache-condition"
+        ],
+        [
+          "cache-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "cache-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "缓存开发环境最终过期时间是多少？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "cache-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "cache-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "Which cache environment keeps 600 seconds?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "cache-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "cache-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "缓存过期时间变更的负责人是谁？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "mobile-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "移动上传初次修改的分块大小和网络范围是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "mobile-condition"
+        ],
+        [
+          "mobile-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "mobile-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "What is the corrected WiFi test upload chunk size?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "mobile-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "mobile-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "移动上传哪种网络保持 256 KB？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "mobile-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "mobile-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "Which device model was used to approve the upload change?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "analytics-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "What was the first analytics concurrency setting and target partition?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "analytics-condition"
+        ],
+        [
+          "analytics-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "analytics-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "分析欧洲测试分区最终并发是多少？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "analytics-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "analytics-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "Which analytics partition keeps concurrency 10?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "analytics-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "analytics-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "分析并发变更的审核人是谁？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "queue-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "邮件队列初次超时调整值和适用队列是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "queue-condition"
+        ],
+        [
+          "queue-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "queue-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "What is the corrected sandbox queue visibility timeout?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "queue-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "queue-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "邮件哪个队列保持 60 秒？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "queue-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "queue-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "Which approval date was recorded for the email queue change?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "compiler-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "What optimization level was first applied and to which compiler target?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "compiler-condition"
+        ],
+        [
+          "compiler-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "compiler-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "编译器实验目标最终优化等级是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "compiler-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "compiler-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "Which compiler target keeps O2?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "compiler-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "compiler-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "实验目标优化等级的审批链接是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "storage-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "存储副本初次改了什么值、哪个桶？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "storage-condition"
+        ],
+        [
+          "storage-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "storage-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "What is the corrected lab bucket replica count?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "storage-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "storage-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "存储哪个桶保持 3 副本？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "storage-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "storage-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "What customer signed off on the lab replica change?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    },
+    {
+      "id": "scheduler-q1",
+      "split": "test",
+      "category": "condition_and_value",
+      "query": "What was the first scheduler interval change and which job class?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "scheduler-condition"
+        ],
+        [
+          "scheduler-reply"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "scheduler-q2",
+      "split": "test",
+      "category": "correction",
+      "query": "调度器离线测试任务最终间隔是多少？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "scheduler-correction"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "scheduler-q3",
+      "split": "test",
+      "category": "protected_scope",
+      "query": "Which scheduler jobs keep a 60 minute interval?",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [
+        [
+          "scheduler-condition"
+        ]
+      ],
+      "budget": 6000
+    },
+    {
+      "id": "scheduler-q4",
+      "split": "test",
+      "category": "missing_approval",
+      "query": "调度器间隔变更的审批编号是什么？",
+      "project": "dialogue-probes",
+      "scope": "current_project",
+      "evidence_groups": [],
+      "budget": 6000
+    }
+  ]
+}

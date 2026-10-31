@@ -146,3 +146,50 @@ func TestEvidenceCorpusPreservesV1AndAllowsScopedSharedSessions(t *testing.T) {
 		t.Fatal("cross-project session merge accepted")
 	}
 }
+
+func TestRawDialogueSeedKeepsRolesAndOrder(t *testing.T) {
+	raw, err := os.ReadFile("../data/dialogue-mechanisms-v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c corpus
+	if err = json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	if err = validate(c); err != nil {
+		t.Fatal(err)
+	}
+	work := t.TempDir()
+	d, err := db.Open(filepath.Join(work, "bench.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	docs, _, err := seed(context.Background(), d, c, work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	d.QueryRow(`SELECT COUNT(*) FROM search_docs`).Scan(&count)
+	if count != 48 || len(docs) != 48 {
+		t.Fatalf("extra synthetic prompts: count=%d docs=%d", count, len(docs))
+	}
+	rows, err := d.Query(`SELECT kind FROM search_docs WHERE session_id='supermarket' ORDER BY occurred_at,doc_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var kinds []string
+	for rows.Next() {
+		var kind string
+		if err = rows.Scan(&kind); err != nil {
+			t.Fatal(err)
+		}
+		kinds = append(kinds, kind)
+	}
+	for i, want := range []string{"prompt", "reply", "prompt", "reply"} {
+		if len(kinds) != 4 || kinds[i] != want {
+			t.Fatalf("ordered roles=%v", kinds)
+		}
+	}
+}

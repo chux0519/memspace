@@ -234,3 +234,7 @@ for the fixes, controlled comparison and the live-service availability limitatio
 See [TIMEOUT.md](TIMEOUT.md) for the reproduced scheduling issue, native-server fix,
 local deployment and live rerun, and [COMPETITOR-INJECTION.md](COMPETITOR-INJECTION.md)
 for verified metric definitions and implementation lessons from high-scoring projects.
+
+Mechanism-first ablations (independent multilingual judgment and bounded dialogue
+windows): see [MECHANISMS.md](MECHANISMS.md). These are offline experiments;
+production defaults and the admission-threshold archive are unchanged.

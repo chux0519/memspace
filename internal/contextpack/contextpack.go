@@ -403,6 +403,9 @@ func history(ctx context.Context, db *sql.DB, owner, projectID, current, query s
 	admitted := admittedHistoryHits(resp.Results, current, policy)
 	observe(observer, TraceEvent{Stage: "admitted", Hits: admitted})
 	ordered := orderHistoryHits(admitted)
+	if preserve, _ := ctx.Value(evidenceReplayKey{}).(bool); preserve {
+		ordered = admitted
+	}
 	observe(observer, TraceEvent{Stage: "ordered", Hits: ordered})
 	seenContent := map[string]map[string]bool{}
 	var selected []model.SearchResult
