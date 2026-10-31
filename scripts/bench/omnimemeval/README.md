@@ -70,3 +70,28 @@ It does not change answer/judge prompts, rerun failed questions for favorable
 scores, or synthesize missing results. Publish manifests, commands, versions,
 per-question outcomes, failures and token usage following the upstream
 CONTRIBUTING contract. Credentials and private endpoint logs stay private.
+
+Judge calibration reuses frozen successful official answers and their existing
+reference labels. It does not repeat answer generation or change the official
+score. For example, to compare a candidate that does not accept temperature=0:
+
+```bash
+python scripts/bench/omnimemeval/judge_compare.py \
+  --judged /private/baseline-combined/judged.json \
+  --harness /path/to/pinned/OmniMemEval \
+  --out /private/new-calibration \
+  --model gpt-5.6-luna --env-file /private/provider.env
+```
+
+The selected key is `OPENAI_API_KEY`; the optional selected endpoint is
+`OPENAI_BASE_URL`. Neither unrelated env entries nor keys are copied to results.
+Omit `--env-file` to use existing process configuration. The output directory
+must be new. Defaults expect all 500 indices exactly once and four concurrent
+calls. The manifest records input/prompt hashes and candidate parameters; the
+pinned prompt file is parsed as string literals, without executing that checkout.
+API responses, resolved models, usage, latency and errors remain per question.
+Malformed labels are errors, with no label-based retries. A partial run is marked
+incomplete, never presented as all-question agreement. Temperature is omitted by
+default; use `--temperature 0` only for a compatible model and disclose the choice.
+The candidate's default reasoning is retained. Agreement measures consistency
+with the reference judge; human review of disagreements is still needed.

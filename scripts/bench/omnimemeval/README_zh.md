@@ -25,3 +25,11 @@ worker调用真实认证入库handler和共享检索/注入代码。JSONL通信�
 开销；client耗时包含RPC/ready，worker duration_ms只计ready后的组包。
 它们都不是线上hook延迟。add/ready入库与建索引耗时、worker冷启动应单列。
 完整构建、离线测试、上游贡献及结果要求见同目录memspace.md（本源码目录README.md）。
+
+裁判校准可用 `judge_compare.py`：复用冻结的官方作答与判定，只让候选裁判
+重新判分。提供 `--judged`、`--harness`、`--out`、`--model`，可用 `--env-file`
+读取选定的 `OPENAI_API_KEY` 和可选 `OPENAI_BASE_URL`；输出目录必须新建。
+默认核对完整500个题号，固定官方裁判提示的SHA256，逐题保留响应、实际模型、
+usage和错误。temperature默认省略，兼容模型可显式指定 `--temperature 0`，
+参数差异写进manifest。坏格式不会自动算错或按判分结果重试；未完成会明确标记。
+这只测与官方裁判的一致性，不等于人工核验后的准确率，也不改变正式成绩。
