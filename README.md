@@ -158,7 +158,7 @@ memspace server login-link     # on the server machine: admin session
 | When | Channel | Content |
 |---|---|---|
 | Session start (not `resume`) | SessionStart `additionalContext` | Cards for recent (72 h) **unfinished** sessions in this project from any agent or device: objective, last report, changed files, tests, unresolved failures, next steps, other-device warning. Otherwise a one-line hint. Server unreachable: last cached card (≤ 24 h). |
-| Each substantive prompt | UserPromptSubmit `additionalContext` | Related history in this project (one item per session, never the current session, never repeated); the previous session's card on "继续 / continue". Skipped while offline; 1.5 s deadline. |
+| Each substantive prompt | UserPromptSubmit `additionalContext` | Related history in this project (up to six source fragments, never the current session, never repeated); the previous session's card on "继续 / continue". Skipped while offline; 1.5 s deadline. |
 | On demand | MCP tools | `memspace_project_context`, `memspace_search`, `memspace_session_resume`, `memspace_get_memory`, `memspace_session_history` |
 
 Injected context is bounded and wrapped in `<memspace_context>`, marked as
@@ -279,6 +279,17 @@ Scripts to reproduce: `scripts/bench/`.
 - **Failure:** an unavailable service never blocks ingest or search: indexing
   retries with backoff, queries fall back to keywords.
 - **Status:** `GET /api/v1/embedding/status`, shown by `memspace agent doctor`.
+
+## Experimental evidence relationships
+
+The optional `[evidence]` setting defaults to `mode = "off"`. `shadow` records
+source relationships without changing injected context; `on` additionally packs
+validated related sources together within the existing fragment/character
+budgets. Native question/answer references and generator provenance are captured;
+scoped corrections and exact document citations require explicit retained source
+references. This is experimental and is not a claim of improved benchmark
+accuracy. See [evidence relationships](internal/evidence/README.md) for the
+configuration, source/version checks, limitations and inspection API.
 
 ## Web UI and administration
 
