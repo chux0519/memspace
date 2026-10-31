@@ -42,6 +42,7 @@ def main():
         all_candidate_not_top5 = []
         missed_even_in_100_docs = []
         candidate_sessions = []
+        unreachable_at5 = []
         for r in positive:
             qid = r['question_id']
             ev = evidence[mode][qid]
@@ -51,11 +52,18 @@ def main():
             assert list(state['projects']) == [qid]
             ids = ev['doc_ids'] or []
             found = set()
+            ordered = []
             with sqlite3.connect('file:'+str(index)+'?mode=ro', uri=True) as db:
                 for doc in ids:
                     sid, project = db.execute('SELECT session_id,project_id FROM search_docs WHERE doc_id=?', (doc,)).fetchone()
                     assert project == state['projects'][qid]
-                    found.add(state['sessions'][sid])
+                    source = state['sessions'][sid]
+                    if source not in found:
+                        ordered.append(source)
+                    found.add(source)
+            assert ordered[:10] == (ev['returned_sessions'] or []), 'source rank mapping changed'
+            if len(ev['gold_sessions']) > 5:
+                unreachable_at5.append(qid)
             candidate_sessions.append(len(found))
             complete = set(ev['gold_sessions']).issubset(found)
             candidate_all += complete
@@ -70,6 +78,7 @@ def main():
             absent_from_returned_100_docs=missed_even_in_100_docs,
             candidate_distinct_sessions_min=min(candidate_sessions),
             candidate_distinct_sessions_max=max(candidate_sessions),
+            unreachable_at5_gold_gt5=unreachable_at5,
         )
     pairs = {}
     for before, after in [('fts', 'hybrid'), ('vector', 'hybrid'), ('hybrid', 'hybrid-no-floor'), ('hybrid', 'pack')]:

@@ -190,6 +190,7 @@ func runCmd(args []string) error {
 	manifest["index_state_sha256"] = benchutil.FileSHA(statePath)
 	manifest["production_source_sha256"] = sourceSHA()
 	manifest["db_counts"] = benchutil.Counts(ctx, d)
+	manifest["db_counts_before_embedding"] = manifest["db_counts"]
 	manifest["mode"] = *mode
 	infoClient := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
 	defer infoClient.CloseIdleConnections()
@@ -398,6 +399,7 @@ func runCmd(args []string) error {
 	manifest["scores_sha256"] = benchutil.FileSHA(filepath.Join(*out, "scores.ndjson.gz"))
 	manifest["evidence_sha256"] = benchutil.FileSHA(filepath.Join(*out, "evidence.ndjson.gz"))
 	manifest["end_environment"] = benchutil.Manifest()
+	manifest["db_counts_after_query"] = benchutil.Counts(ctx, d)
 	if emb != nil {
 		manifest["embedding_after"] = emb.Status(ctx)
 	}

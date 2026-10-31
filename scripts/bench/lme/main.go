@@ -174,11 +174,13 @@ func embedCmd(args []string) error {
 func main() {
 	log.SetFlags(log.Ltime)
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: lme embed|serve|run ...")
+		fmt.Fprintln(os.Stderr, "usage: lme embed|serve|run|audit-cache ...")
 		os.Exit(2)
 	}
 	var err error
 	switch os.Args[1] {
+	case "audit-cache":
+		err = auditCacheCmd(os.Args[2:])
 	case "serve":
 		err = serveCmd(os.Args[2:])
 	case "run":

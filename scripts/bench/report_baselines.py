@@ -21,6 +21,18 @@ def write(path, value):
         stream.write(raw)
 
 
+def dist(values):
+    values = sorted(values)
+    if not values:
+        return dict(n=0)
+    result = dict(n=len(values), mean=sum(values)/len(values), max=values[-1])
+    for p in [50, 95, 99]:
+        at = (len(values)-1)*p/100
+        low = int(at)
+        result['p'+str(p)] = values[low] + (values[min(low+1,len(values)-1)]-values[low])*(at-low)
+    return result
+
+
 def hooks(root, day):
     target = root / 'results' / (day + '-hooks')
     manifests, summaries, rows = {}, {}, []
@@ -33,6 +45,11 @@ def hooks(root, day):
         for key, group in summaries[scale].items():
             selected = [r for r in samples if r['layer'] + '/' + r['mode'] == key]
             group['memory_empty_rate'] = sum(r['items'] == 0 for r in selected) / len(selected)
+            group['bytes'] = dist([r['bytes'] for r in selected])
+            called = [r for r in selected if r['semantic_calls'] > 0]
+            group['requests_with_semantic'] = len(called)
+            group['conditional_semantic_timings'] = {field:dist([r[field] for r in called]) for field in [
+                'semantic_ms','query_embedding_http_ms','knn_and_space_checks_ms']}
         for row in samples:
             row = dict(row, scale=scale, memory_empty=row['items'] == 0)
             rows.append(row)
@@ -70,11 +87,21 @@ def main():
         for key, group in sorted(groups.items()):
             latency = group['latency_ms']
             lines.append(f"| {scale}/{key} | {group['n']} | {latency['p50']:.1f} | {latency['p95']:.1f} | {latency['p99']:.1f} | {latency['max']:.1f} | {group['timeout_rate']:.1%} | {group['memory_empty_rate']:.1%} |")
-    lines += ['', '| Scale / layer / mode | characters p50 / p95 | estimated tokens p50 / p95 | empty text |', '|---|---:|---:|---:|']
+    lines += ['', '| Scale / layer / mode | characters p50 / p95 | bytes p50 / p95 | estimated tokens p50 / p95 | empty text | truncated |', '|---|---:|---:|---:|---:|---:|---:|']
     for scale, groups in summary['scales'].items():
         for key, group in sorted(groups.items()):
-            c, t = group['characters'], group['estimated_tokens']
-            lines.append(f"| {scale}/{key} | {c['p50']:.0f} / {c['p95']:.0f} | {t['p50']:.0f} / {t['p95']:.0f} | {group['empty_rate']:.1%} |")
+            c, b, t = group['characters'], group['bytes'], group['estimated_tokens']
+            lines.append(f"| {scale}/{key} | {c['p50']:.0f} / {c['p95']:.0f} | {b['p50']:.0f} / {b['p95']:.0f} | {t['p50']:.0f} / {t['p95']:.0f} | {group['empty_rate']:.1%} | {group['truncated_rate']:.1%} |")
+    lines += ['', 'Semantic timing distributions below include requests with at least one semantic call; keyword/assembly p95 includes all requests. Residual is KNN plus DB/space overhead.', '',
+              '| Scale / layer / mode | requests with semantic | semantic p50 / p95 ms | embedding HTTP p50 / p95 ms | residual p50 / p95 ms | keyword + assembly p95 ms |',
+              '|---|---:|---:|---:|---:|---:|']
+    for scale, groups in summary['scales'].items():
+        for key, group in sorted(groups.items()):
+            values = []
+            for field in ['semantic_ms','query_embedding_http_ms','knn_and_space_checks_ms']:
+                d = group['conditional_semantic_timings'][field]
+                values.append(f"{d['p50']:.1f} / {d['p95']:.1f}" if d['n'] else '—')
+            lines.append(f"| {scale}/{key} | {group['requests_with_semantic']}/{group['n']} | "+' | '.join(values)+f" | {group['keyword_and_assembly_ms']['p95']:.1f} |")
     lines += ['', *['- '+s for s in summary['limits']], '', '# LongMemEval production ingestion', '', '| Mode | attempts / answerable | all@5 | fractional@5 | any@5 | all@10 | NDCG@10 | errors |', '|---|---:|---:|---:|---:|---:|---:|---:|']
     lme = {}
     for mode in ['fts', 'vector', 'hybrid', 'pack', 'hybrid-no-floor']:
@@ -87,6 +114,22 @@ def main():
         q = group['quality']
         values = ' | '.join(f'{q[key]:.2%}' for key in ['recall_all_at_5','fractional_at_5','any_hit_at_5','recall_all_at_10','ndcg_at_10'])
         lines.append(f"| {mode} | {group['attempted']} / {group['answerable']} | {values} | {group['failed']} |")
+    if lme:
+        lines += ['', 'Each question has an independent index. Search uses at most 100 documents, mapped to distinct source sessions. Pack scores selected sources, not answer-bearing text completeness. Cached/fallback query times do not measure production hook latency.', '',
+                  '| Mode | query p50 / p95 ms | answerable under 10 sessions | empty (all500) | pack characters p50 / p95 | pack estimated tokens p50 / p95 |', '|---|---:|---:|---:|---:|---:|']
+        for mode, report in lme.items():
+            g = report['all']
+            fields = []
+            for key in ['characters','estimated_tokens']:
+                d = g[key]
+                fields.append(f"{d['p50']:.0f} / {d['p95']:.0f}" if d['n'] else '—')
+            lines.append(f"| {mode} | {g['latency_ms']['p50']:.1f} / {g['latency_ms']['p95']:.1f} | {g['answerable_under_10']}/470 | {g['empty']} | "+' | '.join(fields)+' |')
+        lines += ['', '| Question type | answerable n | '+' | '.join(mode+' all@5' for mode in lme)+' |', '|---|---:|'+ '|'.join(['---:']*len(lme))+'|']
+        for typ, group in next(iter(lme.values())).items():
+            if typ == 'all':
+                continue
+            values = [f"{r[typ]['quality']['recall_all_at_5']:.2%}" for r in lme.values()]
+            lines.append(f"| {typ} | {group['answerable']} | "+' | '.join(values)+' |')
     write(args.root / 'results' / (args.date + '-baseline-summary.json'), dict(hooks=summary,lme=lme))
     report = args.root / 'results' / (args.date + '-baseline-report.md')
     report.write_text('\n'.join(lines)+'\n')

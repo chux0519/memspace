@@ -84,6 +84,7 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 	var rows []scoreRow
 	childHashes := map[string]string{}
 	counts := map[string]int64{}
+	countsAfter := map[string]int64{}
 	duplicates := 0
 	fingerprints := map[string]bool{}
 	for i, q := range qs {
@@ -130,6 +131,15 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 		for k, v := range cc {
 			counts[k] += v
 		}
+		var ca map[string]int64
+		if raw, ok := cm["db_counts_after_query"]; ok {
+			if e = json.Unmarshal(raw, &ca); e != nil {
+				return e
+			}
+			for k, v := range ca {
+				countsAfter[k] += v
+			}
+		}
 		var dup int
 		json.Unmarshal(cm["duplicate_sources_coalesced"], &dup)
 		duplicates += dup
@@ -162,6 +172,8 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 		return e
 	}
 	manifest["summed_db_counts"] = counts
+	manifest["summed_db_counts_before_embedding"] = counts
+	manifest["summed_db_counts_after_query"] = countsAfter
 	manifest["question_count"] = len(qs)
 	manifest["duplicate_sources_coalesced"] = duplicates
 	manifest["child_manifest_sha256"] = childHashes
