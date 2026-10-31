@@ -15,16 +15,33 @@ type budgetSemantic struct {
 	hits  []search.SemanticHit
 	err   error
 	calls int
+	query string
 }
 
-func (s *budgetSemantic) SemanticSearch(ctx context.Context, _ string, _ []string, _ int) ([]search.SemanticHit, error) {
+func (s *budgetSemantic) SemanticSearch(ctx context.Context, query string, _ []string, _ int) ([]search.SemanticHit, error) {
 	s.calls++
+	s.query = query
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	return s.hits, s.err
 }
 func (*budgetSemantic) MinSimilarities() (float64, float64) { return .6, .45 }
+
+func TestCompactSemanticQueryDoesNotReplaceKeywordQuery(t *testing.T) {
+	f := newFixture(t)
+	f.event("s-web-1", "agent.turn_completed", map[string]any{"last_assistant_message": "connection repaired"})
+	sem := &budgetSemantic{}
+	search.SetSemantic(sem)
+	t.Cleanup(func() { search.SetSemantic(nil) })
+	r, err := search.SearchWithOptions(context.Background(), f.db, owner, all("connection"), search.Options{SemanticQuery: "compact meaning"})
+	if err != nil || len(r.Results) == 0 || sem.query != "compact meaning" || sem.calls != 1 {
+		t.Fatalf("lost independent retrieval inputs: %+v %v %+v", r, err, sem)
+	}
+	if r.Results[0].MatchedTerms != 1 || r.Results[0].Match != "all" {
+		t.Fatalf("keyword coverage used compact query: %+v", r.Results)
+	}
+}
 
 // Cancel a real SQL statement on the single-connection production DB pool.
 // After the callback returns, SQLite must release that connection for semantic

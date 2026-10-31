@@ -180,6 +180,9 @@ type Options struct {
 	// KeywordTimeout reserves time for semantic retrieval when a hybrid keyword
 	// query is slow. Zero, keyword-only mode, or no semantic provider is unbounded.
 	KeywordTimeout time.Duration
+	// SemanticQuery optionally supplies a compact semantic query while lexical
+	// matching and filters still use the original request.
+	SemanticQuery string
 }
 
 // SearchWithOptions may return completed keyword hits and semantic hits when
@@ -236,7 +239,11 @@ func SearchWithOptions(ctx context.Context, db *sql.DB, ownerUserID string, req 
 	}
 	var sem []model.SearchResult
 	if req.Mode != "keyword" && req.Mode != "bm25" && semantic != nil && strings.TrimSpace(req.Query) != "" {
-		if sem, err = semanticResults(ctx, db, ownerUserID, req, projectIDs, limit); err != nil {
+		semReq := req
+		if opts.SemanticQuery != "" {
+			semReq.Query = opts.SemanticQuery
+		}
+		if sem, err = semanticResults(ctx, db, ownerUserID, semReq, projectIDs, limit); err != nil {
 			return nil, err
 		}
 	}

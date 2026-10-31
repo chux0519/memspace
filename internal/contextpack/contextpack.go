@@ -40,9 +40,17 @@ const (
 	ExplicitBudget     = 8000
 	// HardLimit stays below Claude Code's 10,000-character hook limit.
 	HardLimit = 9500
+)
+
+const (
 	// Prompt hooks have 1.5s total. Leave time for the 1s embedding timeout,
 	// database hydration and rendering even when lexical retrieval is slow.
 	PromptKeywordTimeout = 300 * time.Millisecond
+	// Bound only the synchronous semantic query. The source text and full
+	// lexical query remain intact. A character bound also covers long IDs that
+	// the token estimator considers one word.
+	PromptSemanticTokens = 128
+	PromptSemanticChars  = 512
 )
 
 // RecentWindow bounds how old an unfinished session may be to be offered at
@@ -127,6 +135,7 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 		var opts search.Options
 		if req.Mode == ModePrompt {
 			opts.KeywordTimeout = PromptKeywordTimeout
+			opts.SemanticQuery = promptSemanticQuery(req.Query)
 		}
 		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts)
 		if err != nil {
