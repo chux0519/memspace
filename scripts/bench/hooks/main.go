@@ -386,7 +386,7 @@ func realHooks(ctx context.Context, d *sql.DB, t *timer, bin, out string, prompt
 		t.httpCalls++
 		t.mu.Unlock()
 		at := time.Now()
-		rec := &captureWriter{ResponseWriter: w}
+		rec := &captureWriter{ResponseWriter: w, ctx: r.Context()}
 		handler.Context(d, owner).ServeHTTP(rec, r)
 		x := receipt{Duration: ms(time.Since(at))}
 		var p contextpack.Pack
@@ -396,7 +396,9 @@ func realHooks(ctx context.Context, d *sql.DB, t *timer, bin, out string, prompt
 		} else if json.Unmarshal(rec.body.Bytes(), &p) == nil {
 			fill(&x, &p)
 		}
-		x.Timeout = r.Context().Err() != nil
+		// The client normally cancels its context after consuming the response.
+		// Inspect the state latched before headers are sent, not after Write.
+		x.Timeout = rec.requestErr != nil
 		results <- x
 	})))
 	srv := &http.Server{Handler: mux}
@@ -526,12 +528,25 @@ func realHooks(ctx context.Context, d *sql.DB, t *timer, bin, out string, prompt
 
 type captureWriter struct {
 	http.ResponseWriter
-	body   bytes.Buffer
-	status int
+	body       bytes.Buffer
+	status     int
+	ctx        context.Context
+	requestErr error
 }
 
-func (w *captureWriter) WriteHeader(n int) { w.status = n; w.ResponseWriter.WriteHeader(n) }
+func (w *captureWriter) WriteHeader(n int) {
+	if w.status == 0 {
+		w.status = n
+		if w.ctx != nil {
+			w.requestErr = w.ctx.Err()
+		}
+	}
+	w.ResponseWriter.WriteHeader(n)
+}
 func (w *captureWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
 }
