@@ -92,7 +92,7 @@ def main():
         for key, group in sorted(groups.items()):
             c, b, t = group['characters'], group['bytes'], group['estimated_tokens']
             lines.append(f"| {scale}/{key} | {c['p50']:.0f} / {c['p95']:.0f} | {b['p50']:.0f} / {b['p95']:.0f} | {t['p50']:.0f} / {t['p95']:.0f} | {group['empty_rate']:.1%} | {group['truncated_rate']:.1%} |")
-    lines += ['', 'Semantic timing distributions below include requests with at least one semantic call; keyword/assembly p95 includes all requests. Residual is KNN plus DB/space overhead.', '',
+    lines += ['', 'Semantic timing distributions below include requests with at least one semantic call; keyword/assembly p95 includes all requests. Residual is KNN plus DB/space overhead. For real hook rows, the non-semantic remainder also includes process startup, capture/spool and HTTP.', '',
               '| Scale / layer / mode | requests with semantic | semantic p50 / p95 ms | embedding HTTP p50 / p95 ms | residual p50 / p95 ms | keyword + assembly p95 ms |',
               '|---|---:|---:|---:|---:|---:|']
     for scale, groups in summary['scales'].items():
