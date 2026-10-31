@@ -190,6 +190,53 @@ func TestAllTermsRankBeforeAnyTerm(t *testing.T) {
 	}
 }
 
+func TestTermCoverageMatchesIndependentFullTextLookups(t *testing.T) {
+	f := newFixture(t)
+	f.event("s-web-1", "agent.turn_completed", map[string]any{"last_assistant_message": "Repairing token refresh retries and recovering the login connection pool"})
+	f.event("s-bill-1", "agent.turn_completed", map[string]any{"last_assistant_message": "Webhook repairs use retries for transient connection failures"})
+	for _, query := range []string{"认证 超时", "renzheng 超时", "repair retries connection", "刷新令牌 signature login", "webhook token recovering"} {
+		t.Run(query, func(t *testing.T) {
+			req := all(query)
+			req.Mode, req.Limit = "keyword", 3
+			resp := f.search(req)
+			if len(resp.Results) == 0 {
+				t.Fatal("fixture did not exercise term coverage")
+			}
+			var expression string
+			if err := f.db.QueryRow(`SELECT jieba_query(?)`, query).Scan(&expression); err != nil {
+				t.Fatal(err)
+			}
+			terms := search.Terms(expression)
+			want := map[int64]int{}
+			// Deliberately omit candidate rowid constraints in the reference.
+			// Pinyin alternatives, prefixes and porter stemming remain FTS's job.
+			for _, term := range terms {
+				rows, err := f.db.Query(`SELECT rowid FROM search_fts WHERE search_fts MATCH ?`, term)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for rows.Next() {
+					var id int64
+					if err := rows.Scan(&id); err != nil {
+						t.Fatal(err)
+					}
+					want[id]++
+				}
+				err = rows.Err()
+				rows.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, hit := range resp.Results {
+				if hit.TotalTerms != len(terms) || hit.MatchedTerms != want[hit.DocID] {
+					t.Fatalf("doc %d: matched %d/%d, want %d/%d", hit.DocID, hit.MatchedTerms, hit.TotalTerms, want[hit.DocID], len(terms))
+				}
+			}
+		})
+	}
+}
+
 func TestErrorsFilesAndCommands(t *testing.T) {
 	f := newFixture(t)
 	if r := f.search(all("context deadline exceeded")); len(r.Results) == 0 || r.Results[0].Kind != search.KindFailure {

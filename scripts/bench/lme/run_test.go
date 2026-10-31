@@ -29,6 +29,27 @@ func TestMetricsUseAllSourcesAndExcludeAbstention(t *testing.T) {
 		t.Fatal("abstention incorrectly scored")
 	}
 }
+
+func TestIndexReplayRequiresExplicitReadyMatchingProducer(t *testing.T) {
+	for _, tc := range []struct {
+		name, data, producer, current, reuse string
+		ready, ok                            bool
+	}{
+		{"same code", datasetSHA, "old", "old", "", true, true},
+		{"changed code", datasetSHA, "old", "new", "", true, false},
+		{"explicit replay", datasetSHA, "old", "new", "old", true, true},
+		{"wrong producer", datasetSHA, "old", "new", "other", true, false},
+		{"incomplete", datasetSHA, "old", "new", "old", false, false},
+		{"wrong data", "other", "old", "new", "old", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateIndexProvenance(indexState{DataSHA: tc.data, ProductionSourceSHA: tc.producer, Ready: tc.ready}, tc.current, tc.reuse)
+			if (err == nil) != tc.ok {
+				t.Fatalf("unexpected provenance decision: %v", err)
+			}
+		})
+	}
+}
 func TestDateAndRealIngestKeepRepeatedSessionsInSeparateProjects(t *testing.T) {
 	d, e := db.Open(filepath.Join(t.TempDir(), "index.db"))
 	if e != nil {

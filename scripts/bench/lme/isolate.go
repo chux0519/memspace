@@ -48,7 +48,7 @@ func runDataset(path string) ([]question, error) {
 	parsedRunData.questions = qs
 	return qs, nil
 }
-func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []question) error {
+func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []question, reuseSource string) error {
 	if e := benchutil.NewDir(out); e != nil {
 		return e
 	}
@@ -66,6 +66,7 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 	manifest["diagnostic_no_floor"] = noFloor
 	manifest["index_isolation"] = "independent database per question; immutable dataset parsing and text vectors may be cached"
 	manifest["production_source_sha256"] = sourceSHA()
+	manifest["index_reuse_expected_source_sha256"] = reuseSource
 	manifest["limits"] = []string{"real API event ingestion, historical dates, DocFromEvent truncation/chunking retained", "top100 documents mapped to distinct top10 source sessions; shortage not padded", "pack measures selected source coverage, not semantic answer completeness", "cached embedding latency is not production hook latency", "30 _abs questions execution only,470 scored"}
 	sf, e := os.OpenFile(filepath.Join(out, "scores.ndjson.gz"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if e != nil {
@@ -93,6 +94,9 @@ func isolatedRun(data, dbBase, out, url, mode string, noFloor bool, qs []questio
 		index := filepath.Join(dbDir, key+".db")
 		// A prior run's source index is reusable; result directories are immutable.
 		args := []string{"-data", data, "-db", index, "-out", child, "-embed-url", url, "-mode", mode, "-question-id", q.ID}
+		if reuseSource != "" {
+			args = append(args, "-reuse-index-source", reuseSource)
+		}
 		if noFloor {
 			args = append(args, "-no-floor")
 		}

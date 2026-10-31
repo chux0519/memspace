@@ -172,6 +172,20 @@ func MinSimilarities() (inject, searchFloor float64) {
 // semantic search is available, its results are fused with the keyword
 // results by Reciprocal Rank Fusion.
 func Search(ctx context.Context, db *sql.DB, ownerUserID string, req model.SearchRequest) (*model.SearchResponse, error) {
+	return SearchWithOptions(ctx, db, ownerUserID, req, Options{})
+}
+
+// Options controls latency-sensitive callers without changing normal search.
+type Options struct {
+	// KeywordTimeout reserves time for semantic retrieval when a hybrid keyword
+	// query is slow. Zero, keyword-only mode, or no semantic provider is unbounded.
+	KeywordTimeout time.Duration
+}
+
+// SearchWithOptions may return completed keyword hits and semantic hits when
+// only its keyword budget expires. Caller cancellation and other errors remain
+// errors. An empty fallback is also an error, not a successful empty search.
+func SearchWithOptions(ctx context.Context, db *sql.DB, ownerUserID string, req model.SearchRequest, opts Options) (*model.SearchResponse, error) {
 	if req.Mode == "session" {
 		return SearchSessions(ctx, db, ownerUserID, req)
 	}
@@ -201,16 +215,36 @@ func Search(ctx context.Context, db *sql.DB, ownerUserID string, req model.Searc
 
 	var kw []model.SearchResult
 	var kwNote string
+	var keywordErr error
+	keywordExpired := false
 	if req.Mode != "semantic" {
-		if kw, kwNote, err = keyword(ctx, db, ownerUserID, req, projectIDs, limit); err != nil {
-			return nil, err
+		keywordCtx := ctx
+		cancel := func() {}
+		bounded := opts.KeywordTimeout > 0 && semantic != nil && req.Mode != "keyword" && req.Mode != "bm25"
+		if bounded {
+			keywordCtx, cancel = context.WithTimeout(ctx, opts.KeywordTimeout)
 		}
+		kw, kwNote, keywordErr = keyword(keywordCtx, db, ownerUserID, req, projectIDs, limit)
+		keywordExpired = bounded && errors.Is(keywordErr, context.DeadlineExceeded) && ctx.Err() == nil
+		cancel()
+		if keywordErr != nil && !keywordExpired {
+			return nil, keywordErr
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	var sem []model.SearchResult
 	if req.Mode != "keyword" && req.Mode != "bm25" && semantic != nil && strings.TrimSpace(req.Query) != "" {
 		if sem, err = semanticResults(ctx, db, ownerUserID, req, projectIDs, limit); err != nil {
 			return nil, err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if keywordExpired && len(kw) == 0 && len(sem) == 0 {
+		return nil, keywordErr
 	}
 	switch {
 	case len(sem) == 0:
@@ -222,6 +256,9 @@ func Search(ctx context.Context, db *sql.DB, ownerUserID string, req model.Searc
 		resp.Results = sem[:min(len(sem), limit)]
 	default:
 		resp.Results = fuse(kw, sem, limit)
+	}
+	if keywordExpired {
+		resp.Note = "partial results: keyword search reached its time budget"
 	}
 	return resp, nil
 }
@@ -307,10 +344,10 @@ func keyword(ctx context.Context, db *sql.DB, owner string, req model.SearchRequ
 		// three of four words beats one matching a single common word.
 		anyHits, err := query(ctx, db, owner, strings.Join(terms, " OR "), projectIDs, req, 4*(limit-len(results)), seen)
 		if err != nil {
-			return nil, "", err
+			return results, "", err
 		}
 		if err := countTerms(ctx, db, terms, anyHits); err != nil {
-			return nil, "", err
+			return results, "", err
 		}
 		sort.SliceStable(anyHits, func(i, j int) bool {
 			if anyHits[i].MatchedTerms != anyHits[j].MatchedTerms {
@@ -527,8 +564,9 @@ func query(ctx context.Context, db *sql.DB, owner, match string, projectIDs []st
 	return out, rows.Err()
 }
 
-// countTerms sets MatchedTerms on each hit: one indexed lookup per term,
-// restricted to the hits.
+// countTerms sets MatchedTerms on each hit, scanning each term's posting list
+// once and restricting it to the candidates. Unary + prevents FTS5 from treating
+// rowid IN as repeated rowid seeks, which re-evaluate a prefix MATCH per hit.
 func countTerms(ctx context.Context, db *sql.DB, terms []string, hits []model.SearchResult) error {
 	if len(hits) == 0 {
 		return nil
@@ -544,7 +582,7 @@ func countTerms(ctx context.Context, db *sql.DB, terms []string, hits []model.Se
 		for _, h := range hits {
 			ids = append(ids, h.DocID)
 		}
-		rows, err := db.QueryContext(ctx, `SELECT rowid FROM search_fts WHERE search_fts MATCH ? AND rowid IN (`+placeholders+`)`, ids...)
+		rows, err := db.QueryContext(ctx, `SELECT rowid FROM search_fts WHERE search_fts MATCH ? AND +rowid IN (`+placeholders+`)`, ids...)
 		if err != nil {
 			return fmt.Errorf("search: count terms: %w", err)
 		}

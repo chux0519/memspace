@@ -40,6 +40,9 @@ const (
 	ExplicitBudget     = 8000
 	// HardLimit stays below Claude Code's 10,000-character hook limit.
 	HardLimit = 9500
+	// Prompt hooks have 1.5s total. Leave time for the 1s embedding timeout,
+	// database hydration and rendering even when lexical retrieval is slow.
+	PromptKeywordTimeout = 300 * time.Millisecond
 )
 
 // RecentWindow bounds how old an unfinished session may be to be offered at
@@ -121,7 +124,11 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 		return nil
 	}
 	addHistory := func(limit, priority int) error {
-		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit)
+		var opts search.Options
+		if req.Mode == ModePrompt {
+			opts.KeywordTimeout = PromptKeywordTimeout
+		}
+		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts)
 		if err != nil {
 			return err
 		}
@@ -304,15 +311,15 @@ func card(si *model.SessionInfo, s *summary.Summary, callerDevice string) string
 	return b.String()
 }
 
-func history(ctx context.Context, db *sql.DB, owner, projectID, current, query string, limit int) ([]section, error) {
+func history(ctx context.Context, db *sql.DB, owner, projectID, current, query string, limit int, opts search.Options) ([]section, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
-	resp, err := search.Search(ctx, db, owner, model.SearchRequest{
+	resp, err := search.SearchWithOptions(ctx, db, owner, model.SearchRequest{
 		Query: query, Scope: model.ScopeSelectedProjects, ProjectIDs: []string{projectID},
 		Kinds: []string{search.KindMemory, search.KindSummary, search.KindPrompt, search.KindReply, search.KindFailure, search.KindChange},
 		Limit: limit * 8, Highlight: model.HighlightMarks,
-	})
+	}, opts)
 	if err != nil {
 		return nil, err
 	}

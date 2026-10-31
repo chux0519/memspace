@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -108,11 +109,18 @@ func runCmd(args []string) error {
 	noFloor := fs.Bool("no-floor", false, "diagnostic hybrid floor disabled; not baseline")
 	isolate := fs.Bool("isolate-projects", false, "independent per-question databases, agentmemory corpus isolation")
 	questionID := fs.String("question-id", "", "one question, used by isolated runner")
+	reuseSource := fs.String("reuse-index-source", "", "explicitly replay a ready index from this producer SHA; verify ingestion code is unchanged")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *limit < 0 {
 		return fmt.Errorf("limit must not be negative")
+	}
+	if *reuseSource != "" {
+		b, err := hex.DecodeString(*reuseSource)
+		if err != nil || len(b) != 32 {
+			return fmt.Errorf("reuse-index-source must be a SHA256")
+		}
 	}
 	if *mode != "fts" && *mode != "vector" && *mode != "hybrid" && *mode != "pack" {
 		return fmt.Errorf("invalid mode")
@@ -150,7 +158,15 @@ func runCmd(args []string) error {
 		qs = qs[:min(*limit, len(qs))]
 	}
 	if *isolate {
-		return isolatedRun(*data, a, *out, *url, *mode, *noFloor, qs)
+		return isolatedRun(*data, a, *out, *url, *mode, *noFloor, qs, *reuseSource)
+	}
+	if *reuseSource != "" {
+		if err := benchutil.RequireCopy(a); err != nil {
+			return fmt.Errorf("reuse requires an existing disposable DB: %w", err)
+		}
+		if _, err := os.Stat(a + ".state.json"); err != nil {
+			return fmt.Errorf("reuse requires an existing index: %w", err)
+		}
 	}
 	if e = benchutil.NewDir(*out); e != nil {
 		return e
@@ -167,8 +183,8 @@ func runCmd(args []string) error {
 		if e = json.Unmarshal(b, &state); e != nil {
 			return e
 		}
-		if state.DataSHA != datasetSHA || state.ProductionSourceSHA != sourceSHA() {
-			return fmt.Errorf("index provenance mismatch")
+		if err := validateIndexProvenance(state, sourceSHA(), *reuseSource); err != nil {
+			return err
 		}
 	} else if !os.IsNotExist(err) {
 		return err
@@ -188,6 +204,8 @@ func runCmd(args []string) error {
 	manifest := benchutil.Manifest()
 	manifest["dataset_sha256"] = datasetSHA
 	manifest["index_state_sha256"] = benchutil.FileSHA(statePath)
+	manifest["index_producer_source_sha256"] = state.ProductionSourceSHA
+	manifest["index_reuse_expected_source_sha256"] = *reuseSource
 	manifest["production_source_sha256"] = sourceSHA()
 	manifest["db_counts"] = benchutil.Counts(ctx, d)
 	manifest["db_counts_before_embedding"] = manifest["db_counts"]
@@ -407,6 +425,20 @@ func runCmd(args []string) error {
 		return e
 	}
 	return benchutil.JSON(filepath.Join(*out, "summary.json"), aggregate(scores))
+}
+
+func validateIndexProvenance(state indexState, current, reuse string) error {
+	if state.DataSHA != datasetSHA {
+		return fmt.Errorf("index dataset provenance mismatch")
+	}
+	if reuse != "" {
+		if !state.Ready || state.ProductionSourceSHA != reuse {
+			return fmt.Errorf("index reuse requires the expected ready producer")
+		}
+	} else if state.ProductionSourceSHA != current {
+		return fmt.Errorf("index provenance mismatch")
+	}
+	return nil
 }
 
 type observedSemantic struct {
