@@ -26,6 +26,7 @@ import (
 	"github.com/chux0519/memspace/internal/contextpack"
 	memdb "github.com/chux0519/memspace/internal/db"
 	"github.com/chux0519/memspace/internal/embedding"
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/search"
 	"github.com/chux0519/memspace/internal/server/handler"
@@ -52,12 +53,13 @@ type request struct {
 	TopK     int       `json:"top_k"`
 }
 type state struct {
-	UserKey      string `json:"user_key"`
-	Token        string `json:"token"`
-	Project      string `json:"project"`
-	EmbeddingURL string `json:"embedding_url"`
-	Model        string `json:"model"`
-	Mode         string `json:"mode"`
+	UserKey      string          `json:"user_key"`
+	Token        string          `json:"token"`
+	Project      string          `json:"project"`
+	EmbeddingURL string          `json:"embedding_url"`
+	Model        string          `json:"model"`
+	Mode         string          `json:"mode"`
+	Evidence     evidence.Policy `json:"evidence"`
 }
 type engine struct {
 	d   *sql.DB
@@ -68,7 +70,17 @@ type engine struct {
 
 func digest(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
 
-func open(dir, userKey, endpoint, modelName, mode string) (*engine, error) {
+func open(dir, userKey, endpoint, modelName, mode string, policies ...evidence.Policy) (*engine, error) {
+	policy := evidence.Policy{Mode: "off"}
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
+	if err := policy.Validate(); err != nil {
+		return nil, err
+	}
+	if policy.Mode == "" {
+		policy.Mode = "off"
+	}
 	if decoded, err := hex.DecodeString(userKey); err != nil || len(decoded) != 32 {
 		return nil, errors.New("invalid user key")
 	}
@@ -93,7 +105,7 @@ func open(dir, userKey, endpoint, modelName, mode string) (*engine, error) {
 		if e = json.Unmarshal(raw, &st); e != nil {
 			return nil, e
 		}
-		if st.UserKey != userKey || st.EmbeddingURL != endpoint || st.Model != modelName || st.Mode != mode {
+		if st.UserKey != userKey || st.EmbeddingURL != endpoint || st.Model != modelName || st.Mode != mode || (st.Evidence.Mode != "" && st.Evidence.Mode != policy.Mode) || (st.Evidence.Mode == "" && policy.Mode != "off") || st.Evidence.Limit() != policy.Limit() {
 			return nil, errors.New("worker identity/configuration changed")
 		}
 	} else if os.IsNotExist(e) {
@@ -108,7 +120,7 @@ func open(dir, userKey, endpoint, modelName, mode string) (*engine, error) {
 		if e != nil {
 			return nil, e
 		}
-		st = state{UserKey: userKey, Token: token, EmbeddingURL: endpoint, Model: modelName, Mode: mode}
+		st = state{UserKey: userKey, Token: token, EmbeddingURL: endpoint, Model: modelName, Mode: mode, Evidence: policy}
 		// Create the ownership marker before any database; no preexisting DB is opened.
 		if e = writeState(marker, st); e != nil {
 			return nil, e
@@ -244,7 +256,7 @@ func (e *engine) add(ctx context.Context, r request) (any, error) {
 		if m.Role == "assistant" {
 			typ, field = "agent.turn_completed", "last_assistant_message"
 		}
-		p := map[string]any{field: m.Content, "role": m.Role, "origin": map[string]any{"source_kind": "ordered_import", "batch_key": key, "source_ordinal": i, "source_complete": true, "native_message_id": m.ID}}
+		p := map[string]any{field: m.Content, "role": m.Role, "origin": map[string]any{"source_kind": "ordered_import", "batch_key": key, "source_ordinal": i, "source_complete": true, "source_count": len(r.Messages), "native_message_id": m.ID}}
 		b, _ := json.Marshal(p)
 		at, _ := time.Parse(time.RFC3339Nano, m.ChatTime)
 		seq := int64(i)
@@ -340,6 +352,7 @@ func (e *engine) query(ctx context.Context, r request) (any, error) {
 	return map[string]any{"texts": text, "pack": p, "mode": "context_pack", "duration_ms": float64(time.Since(at).Microseconds()) / 1000}, nil
 }
 func (e *engine) dispatch(ctx context.Context, r request) (any, error) {
+	ctx = evidence.WithPolicy(ctx, e.st.Evidence)
 	switch r.Op {
 	case "add":
 		return e.add(ctx, r)
@@ -378,15 +391,19 @@ func run(in io.Reader, out io.Writer, en *engine) error {
 	}
 	return scanner.Err()
 }
+
+var evidenceMode string
+
 func main() {
 	dir := flag.String("dir", "", "owned user directory")
 	key := flag.String("user-key", "", "SHA256 user key")
 	url := flag.String("embedding-url", "", "empty=explicit keyword-only")
 	modelName := flag.String("model", "BAAI/bge-m3", "embedding model")
 	mode := flag.String("mode", "context_pack", "context_pack or search")
+	flag.StringVar(&evidenceMode, "evidence-mode", "off", "off, shadow or on")
 	flag.Parse()
 	log.SetOutput(os.Stderr)
-	en, err := open(*dir, *key, *url, *modelName, *mode)
+	en, err := open(*dir, *key, *url, *modelName, *mode, evidence.Policy{Mode: evidenceMode})
 	if err == nil {
 		defer en.d.Close()
 		err = run(os.Stdin, os.Stdout, en)

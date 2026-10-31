@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"github.com/chux0519/memspace/internal/admission"
+	"github.com/chux0519/memspace/internal/evidence"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,6 +20,7 @@ type Config struct {
 	Client    ClientConfig     `toml:"client"`
 	Embedding EmbeddingConfig  `toml:"embedding"`
 	Context   admission.Policy `toml:"context"`
+	Evidence  evidence.Policy  `toml:"evidence"`
 }
 
 // EmbeddingConfig enables semantic search through an OpenAI-compatible
@@ -199,8 +201,8 @@ func Load(path string) (*Config, error) {
 				return nil, fmt.Errorf("config: parse %s: %w", path, err)
 			}
 			for _, key := range meta.Undecoded() {
-				if len(key) > 0 && key[0] == "context" {
-					return nil, fmt.Errorf("config: unknown context setting %s", key.String())
+				if len(key) > 0 && (key[0] == "context" || key[0] == "evidence") {
+					return nil, fmt.Errorf("config: unknown context/evidence setting %s", key.String())
 				}
 			}
 		}
@@ -250,6 +252,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: client.home: %w", err)
 	}
 	cfg.Client.Home = home
+	if err := cfg.Evidence.Validate(); err != nil {
+		return nil, err
+	}
 	if err := cfg.Context.Validate(); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}

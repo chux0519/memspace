@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/jobs"
 	"github.com/chux0519/memspace/internal/memory"
 	"github.com/chux0519/memspace/internal/model"
@@ -152,6 +153,13 @@ func Generate(ctx context.Context, db *sql.DB, sessionID string) (*Summary, erro
 		DeviceID: deviceID, AgentType: agentType, OccurredAt: s.LastEventAt,
 		Title: s.Objective, Body: searchBody(s), Files: strings.Join(s.ChangedFiles, "\n"),
 	}); err != nil {
+		return nil, err
+	}
+	sources := []evidence.SourceRef{{Kind: "session", ID: sessionID}}
+	for _, id := range s.Evidence {
+		sources = append(sources, evidence.SourceRef{Kind: "event", ID: id})
+	}
+	if err := evidence.RecordDerived(ctx, tx, evidence.Derived{Kind: "summary_version", Ref: sessionID, Project: projectID, Session: sessionID, Title: s.Objective, Content: searchBody(s), Sources: sources, At: s.LastEventAt}); err != nil {
 		return nil, err
 	}
 	for _, m := range Memories(sessionID, projectID, s) {

@@ -22,6 +22,7 @@ import (
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/db"
 	"github.com/chux0519/memspace/internal/embedding"
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/jobs"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/releasecheck"
@@ -170,7 +171,7 @@ func serverStartCmd() *cobra.Command {
 			}
 
 			// Background jobs (session summaries, embeddings) run until shutdown.
-			jobCtx, stopJobs := context.WithCancel(context.Background())
+			jobCtx, stopJobs := context.WithCancel(evidence.WithPolicy(context.Background(), cfg.Evidence))
 			jobsDone := make(chan struct{})
 			go func() {
 				defer close(jobsDone)
@@ -188,7 +189,7 @@ func serverStartCmd() *cobra.Command {
 				go releases.Run(context.WithoutCancel(cmd.Context()))
 			}
 
-			opts := server.Options{Embedding: emb, DownloadsDir: cfg.Server.DownloadsDir, LatestRelease: releases.Latest, ContextPolicy: cfg.Context}
+			opts := server.Options{Embedding: emb, DownloadsDir: cfg.Server.DownloadsDir, LatestRelease: releases.Latest, ContextPolicy: cfg.Context, EvidencePolicy: cfg.Evidence}
 			srv := &http.Server{
 				Addr:              cfg.Server.Address,
 				Handler:           server.NewWithOptions(database, cfg.Auth.OwnerUserID, opts),

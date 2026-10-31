@@ -11,6 +11,7 @@ import (
 
 	"github.com/chux0519/memspace/internal/auth"
 	"github.com/chux0519/memspace/internal/embedding"
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/redact"
 	"github.com/chux0519/memspace/internal/search"
@@ -426,6 +427,10 @@ func BatchEvents(db *sql.DB) http.HandlerFunc {
 			sid := ""
 			if ev.SessionID != nil {
 				sid = *ev.SessionID
+			}
+			if err := evidence.IndexEvent(r.Context(), tx, ev.EventID); err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to record evidence")
+				return
 			}
 			if err := search.IndexEvent(r.Context(), tx, search.Event{
 				EventID: ev.EventID, EventType: ev.EventType, ProjectID: req.ProjectID,

@@ -62,6 +62,7 @@ class _Worker:
             self.lock_file.close();raise RuntimeError('evaluation user already has a worker in another process')
         self.stderr=(client.root/(key+'.stderr')).open('ab')
         cmd=[str(client.binary),'--dir',str(self.directory),'--user-key',key,'--mode',client.mode,'--model',client.model]
+        if client.evidence_mode!='off':cmd += ['--evidence-mode',client.evidence_mode]
         if client.embedding:cmd += ['--embedding-url',client.embedding]
         try:self.proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=self.stderr,bufsize=0)
         except BaseException:self.stderr.close();self.lock_file.close();raise
@@ -120,10 +121,12 @@ class MemSpaceClient:
         self.embedding=os.environ.get('MEMSPACE_EMBEDDING_URL','').strip()
         self.model=os.environ.get('MEMSPACE_EMBED_MODEL','BAAI/bge-m3')
         self.mode=os.environ.get('MEMSPACE_MODE','context_pack')
+        self.evidence_mode=os.environ.get('MEMSPACE_EVIDENCE_MODE','off')
+        if self.evidence_mode not in ['off','shadow','on']:raise ValueError('invalid evidence mode')
         if self.mode not in ['context_pack','search']:raise ValueError('invalid MEMSPACE_MODE')
         self.timeout=float(os.environ.get('MEMSPACE_RPC_TIMEOUT','900'))
         if not 0<self.timeout<=86400:raise ValueError('invalid RPC timeout')
-        self.config=(str(self.binary),self.embedding,self.model,self.mode)
+        self.config=(str(self.binary),self.embedding,self.model,self.mode,self.evidence_mode)
     def _worker(self,key):
         token=(str(self.root),key)
         with _GUARD:

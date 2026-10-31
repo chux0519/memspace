@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/model"
 	"github.com/chux0519/memspace/internal/search"
 )
@@ -90,6 +91,13 @@ func Upsert(ctx context.Context, tx *sql.Tx, m *Memory, at time.Time) error {
 		m.ID, m.ProjectID, session, m.DedupKey, m.Scope, m.Type, m.Title, m.Content, m.Status,
 		m.Confidence, string(refs), m.Generator, now, now); err != nil {
 		return fmt.Errorf("memory: store: %w", err)
+	}
+	sources := make([]evidence.SourceRef, 0, len(m.SourceRefs))
+	for _, ref := range m.SourceRefs {
+		sources = append(sources, evidence.SourceRef{Kind: ref.Kind, ID: ref.ID})
+	}
+	if err := evidence.RecordDerived(ctx, tx, evidence.Derived{Kind: "memory_version", Ref: m.ID, Project: m.ProjectID, Session: m.SessionID, Title: m.Title, Content: m.Content, Sources: sources, At: at}); err != nil {
+		return err
 	}
 	return search.Upsert(ctx, tx, &search.Doc{
 		Kind: search.KindMemory, RefID: m.ID, ProjectID: m.ProjectID, SessionID: m.SessionID,

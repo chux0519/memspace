@@ -12,6 +12,7 @@ import (
 	"github.com/chux0519/memspace/internal/admission"
 	"github.com/chux0519/memspace/internal/auth"
 	"github.com/chux0519/memspace/internal/embedding"
+	"github.com/chux0519/memspace/internal/evidence"
 	"github.com/chux0519/memspace/internal/mcpserver"
 	"github.com/chux0519/memspace/internal/server/handler"
 	"github.com/chux0519/memspace/web"
@@ -19,7 +20,8 @@ import (
 
 // Options are optional server components.
 type Options struct {
-	ContextPolicy admission.Policy
+	ContextPolicy  admission.Policy
+	EvidencePolicy evidence.Policy
 	// Embedding enables semantic search status reporting (nil = disabled).
 	Embedding *embedding.Service
 	// DownloadsDir serves client binaries at /downloads/ ("" = none).
@@ -45,7 +47,8 @@ func NewWithOptions(db *sql.DB, ownerUserID string, opts Options) http.Handler {
 	r.Use(securityHeaders)
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(admission.WithPolicy(req.Context(), opts.ContextPolicy)))
+			ctx := admission.WithPolicy(req.Context(), opts.ContextPolicy)
+			next.ServeHTTP(w, req.WithContext(evidence.WithPolicy(ctx, opts.EvidencePolicy)))
 		})
 	})
 
