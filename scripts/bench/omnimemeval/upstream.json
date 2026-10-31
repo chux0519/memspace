@@ -1,0 +1,12 @@
+{
+  "revision": "7c79d46e31dd85f3da2509b430bba9406656dd28",
+  "files": {
+    "scripts/client_factory/registry.py": "63627b3c3f234049f9c2266a52cafcf772a5cbeb9609004687c33b6cbffd1743",
+    "scripts/utils/ingest_helpers.py": "bf84adc3b379221cd37b9178a1c30c84b110d52a7abf784a35e33091629d6ae7",
+    "scripts/utils/search_helpers.py": "51db76b7e63c43af27fa30b94b891cc412988020cf15987dc3d22f5c90421e21",
+    "scripts/locomo/locomo_search.py": "a9a3e9ee91b645647b1b5165d58c767e5c5baef8ad7ff4ec25f4e1e5b00e617b",
+    "docs/user_memory/README.md": "30035c37fd4f2ba5cbaa25f7389a4fd9ae023b9722579e6774fe8ca4152858bb",
+    "docs/user_memory/README_zh.md": "ad47ccbff96ea5b468d61783782421b3a14a70095c12b8237add54cba5877392",
+    "env_examples/README.md": "3fda32a65ca133ec9e20d854124919d739a233f56b3864fa36edadf5ee8a4b50"
+  }
+}

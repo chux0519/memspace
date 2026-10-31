@@ -227,6 +227,10 @@ func build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request,
 	default:
 		return nil, fmt.Errorf("%w: unknown mode %q", search.ErrBadRequest, req.Mode)
 	}
+	if opts, ok := ctx.Value(buildOptionsKey{}).(BuildOptions); ok && opts.MaxItems > 0 && len(sections) > opts.MaxItems {
+		sections = sections[:opts.MaxItems]
+		pack.Truncated = true
+	}
 	budget = min(budget, HardLimit)
 	if observer != nil {
 		var items []Item

@@ -238,3 +238,5 @@ for verified metric definitions and implementation lessons from high-scoring pro
 Mechanism-first ablations (independent multilingual judgment and bounded dialogue
 windows): see [MECHANISMS.md](MECHANISMS.md). These are offline experiments;
 production defaults and the admission-threshold archive are unchanged.
+
+OmniMemEval adapter and isolated production bridge: [omnimemeval/README.md](omnimemeval/README.md). The initial real-backend validation covers LME add/search/cleanup, not a full QA score.
