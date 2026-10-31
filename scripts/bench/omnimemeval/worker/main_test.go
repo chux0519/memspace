@@ -14,9 +14,21 @@ import (
 	"github.com/chux0519/memspace/internal/summary"
 )
 
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	// macOS commonly reports /var/folders while its physical path starts
+	// with /private/var. Fixtures must satisfy the worker's canonical-path
+	// contract, just like an evaluation root supplied by a real caller.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func testEngine(t *testing.T) *engine {
 	t.Helper()
-	en, e := open(filepath.Join(t.TempDir(), "user"), strings.Repeat("a", 64), "", "BAAI/bge-m3", "context_pack")
+	en, e := open(filepath.Join(canonicalTempDir(t), "user"), strings.Repeat("a", 64), "", "BAAI/bge-m3", "context_pack")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -70,10 +82,28 @@ func TestValidationBeforeWritingAndOwnership(t *testing.T) {
 	if n != 0 {
 		t.Fatal("partial invalid request")
 	}
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	os.WriteFile(filepath.Join(dir, "existing.db"), []byte("untouched"), 0600)
 	if _, e := open(dir, strings.Repeat("a", 64), "", "BAAI/bge-m3", "context_pack"); e == nil {
 		t.Fatal("unowned directory opened")
+	}
+}
+
+func TestWorkerRejectsSymlinkedRoot(t *testing.T) {
+	base := canonicalTempDir(t)
+	target := filepath.Join(base, "target")
+	if err := os.Mkdir(target, 0700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(base, "alias")
+	if err := os.Symlink(target, alias); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := open(alias, strings.Repeat("a", 64), "", "BAAI/bge-m3", "context_pack"); err == nil || !strings.Contains(err.Error(), "canonical") {
+		t.Fatalf("symlink path was not rejected by the canonical-path guard: %v", err)
+	}
+	if entries, err := os.ReadDir(target); err != nil || len(entries) != 0 {
+		t.Fatalf("symlink rejection wrote worker data: %v %v", entries, err)
 	}
 }
 
