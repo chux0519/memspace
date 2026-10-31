@@ -136,6 +136,7 @@ func Build(ctx context.Context, db *sql.DB, owner, deviceID string, req Request)
 		if req.Mode == ModePrompt {
 			opts.KeywordTimeout = PromptKeywordTimeout
 			opts.SemanticQuery = promptSemanticQuery(req.Query)
+			opts.Parallel = true
 		}
 		hits, err := history(ctx, db, owner, projectID, current, req.Query, limit, opts)
 		if err != nil {

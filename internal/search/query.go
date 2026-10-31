@@ -183,6 +183,9 @@ type Options struct {
 	// SemanticQuery optionally supplies a compact semantic query while lexical
 	// matching and filters still use the original request.
 	SemanticQuery string
+	// Parallel overlaps semantic retrieval with keyword work. Both branches are
+	// joined before returning, including on cancellation or a keyword failure.
+	Parallel bool
 }
 
 // SearchWithOptions may return completed keyword hits and semantic hits when
@@ -215,6 +218,35 @@ func SearchWithOptions(ctx context.Context, db *sql.DB, ownerUserID string, req 
 	if note != "" {
 		return resp, nil
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	var sem []model.SearchResult
+	var semanticErr error
+	wantSemantic := req.Mode != "keyword" && req.Mode != "bm25" && semantic != nil && strings.TrimSpace(req.Query) != ""
+	getSemantic := func(semCtx context.Context) {
+		semReq := req
+		if opts.SemanticQuery != "" {
+			semReq.Query = opts.SemanticQuery
+		}
+		sem, semanticErr = semanticResults(semCtx, db, ownerUserID, semReq, projectIDs, limit)
+	}
+	var semanticDone chan struct{}
+	if opts.Parallel && wantSemantic && req.Mode != "semantic" {
+		semCtx, cancelSemantic := context.WithCancel(ctx)
+		semanticDone = make(chan struct{})
+		go func() {
+			defer close(semanticDone)
+			getSemantic(semCtx)
+		}()
+		// A failed/cancelled keyword branch must not leave semantic work running
+		// after the caller has returned or released its database/resources.
+		defer func() {
+			cancelSemantic()
+			<-semanticDone
+		}()
+	}
 
 	var kw []model.SearchResult
 	var kwNote string
@@ -237,15 +269,13 @@ func SearchWithOptions(ctx context.Context, db *sql.DB, ownerUserID string, req 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	var sem []model.SearchResult
-	if req.Mode != "keyword" && req.Mode != "bm25" && semantic != nil && strings.TrimSpace(req.Query) != "" {
-		semReq := req
-		if opts.SemanticQuery != "" {
-			semReq.Query = opts.SemanticQuery
-		}
-		if sem, err = semanticResults(ctx, db, ownerUserID, semReq, projectIDs, limit); err != nil {
-			return nil, err
-		}
+	if semanticDone != nil {
+		<-semanticDone
+	} else if wantSemantic {
+		getSemantic(ctx)
+	}
+	if semanticErr != nil {
+		return nil, semanticErr
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

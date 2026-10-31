@@ -145,7 +145,7 @@ func run() error {
 	manifest["e2e_mcp_hint_enabled"] = true
 	manifest["e2e_current_session"] = "fresh synthetic session; direct Build uses historical native session"
 	manifest["warmup_per_group"] = 5
-	manifest["limits"] = []string{"read-only production snapshot; no background sweep; original project partitions retained at 10x", "estimated tokens, not billed model tokens", "semantic minus embedding HTTP includes KNN, space checks and DB overhead", "end-to-end sync suppressed by isolated fresh sync.lock; capture/spool/startup/HTTP/injection retained"}
+	manifest["limits"] = []string{"read-only production snapshot; no background sweep; original project partitions retained at 10x", "estimated tokens, not billed model tokens", "semantic minus embedding HTTP includes KNN, space checks and DB overhead", "keyword_and_assembly_ms is wall time minus semantic time; overlapping keyword work is excluded", "end-to-end sync suppressed by isolated fresh sync.lock; capture/spool/startup/HTTP/injection retained"}
 	samples, starts, e := inputs(ctx, d, *count)
 	if e != nil {
 		return e
