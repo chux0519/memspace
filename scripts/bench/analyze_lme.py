@@ -40,6 +40,7 @@ def main():
             continue
         candidate_all = 0
         all_candidate_not_top5 = []
+        attainable_candidate_not_top5 = []
         missed_even_in_100_docs = []
         candidate_sessions = []
         unreachable_at5 = []
@@ -69,12 +70,15 @@ def main():
             candidate_all += complete
             if complete and not r['recall_all_at_5']:
                 all_candidate_not_top5.append(qid)
+                if len(ev['gold_sessions']) <= 5:
+                    attainable_candidate_not_top5.append(qid)
             if not complete:
                 missed_even_in_100_docs.append(qid)
         output[mode].update(
             all_sources_in_returned_100_docs=candidate_all,
             candidate_coverage=candidate_all/470,
             all_candidate_but_not_top5=all_candidate_not_top5,
+            attainable_candidate_but_not_top5=attainable_candidate_not_top5,
             absent_from_returned_100_docs=missed_even_in_100_docs,
             candidate_distinct_sessions_min=min(candidate_sessions),
             candidate_distinct_sessions_max=max(candidate_sessions),
