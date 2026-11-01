@@ -1,0 +1,239 @@
+{
+  "date": "2026-11-01",
+  "dataset": {
+    "name": "LongMemEval-S cleaned",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "covered": 500,
+    "source_metric_denominator": 470,
+    "qa_denominator": 500
+  },
+  "memspace": {
+    "commit": "078985a",
+    "worker_sha256": "32f60f08d21e89c1a614ea75dad794b2260883b214ab565b95ed47c91252fcc3",
+    "embedding_model": "BAAI/bge-m3",
+    "reranker": false,
+    "llm_memory_extraction": false,
+    "max_source_fragments": 6,
+    "max_context_characters": 6000,
+    "relation_mode_in_delivery_result": "on",
+    "relation_default": "off"
+  },
+  "pins": {
+    "agentmemory": {
+      "repository": "rohitg00/agentmemory",
+      "commit": "3f8784d10c2e996873d4392b85226a5d042def0e"
+    },
+    "deja-vu": {
+      "repository": "vshulcz/deja-vu",
+      "commit": "ad7c9f26874a05bb2a674f34241ac10cd3befb28"
+    },
+    "MemPalace": {
+      "repository": "MemPalace/mempalace",
+      "commit": "4f7745afbd9d0197c6475b4c7ac846d4932eaeda"
+    },
+    "OmniMemEval": {
+      "commit": "7c79d46e31dd85f3da2509b430bba9406656dd28"
+    }
+  },
+  "source_scores": {
+    "agentmemory-bm25": {
+      "metrics": {
+        "n": 470,
+        "recall_all_at_1": 0.28936170212765955,
+        "fractional_at_1": 0.5433687943262411,
+        "any_hit_at_1": 0.8489361702127659,
+        "recall_all_at_5": 0.8468085106382979,
+        "fractional_at_5": 0.9171985815602839,
+        "any_hit_at_5": 0.9617021276595744,
+        "recall_all_at_10": 0.8468085106382979,
+        "fractional_at_10": 0.9171985815602839,
+        "any_hit_at_10": 0.9617021276595744,
+        "ndcg_at_10": 0.8797278805965744
+      },
+      "independent_score_audit": {
+        "upstream_revision": "3f8784d10c2e996873d4392b85226a5d042def0e",
+        "source_sha256": {
+          "load.ts": "4e15e3c6968cc558c40982b117beea981a6366942cb97473e2848f043169d0a1",
+          "score.ts": "51ed764b1747db26d70aecd8b677e22923ea38ccbf4c97ec782da612fea1bcb6"
+        },
+        "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+        "checked": 500,
+        "scored": 470,
+        "unanswerable": 30,
+        "mismatches": 0,
+        "scores_sha256": "f13f7597950543bde52b5c09b99ff79211e77750a94242c33931e8ba1de52159",
+        "evidence_sha256": "a0b5c62db466ca498791d0e932fe9cc8c21d12aba6403a6918d4e06e8c4c5013"
+      }
+    },
+    "deja-cli": {
+      "metrics": {
+        "n": 470,
+        "recall_all_at_1": 0.30851063829787234,
+        "fractional_at_1": 0.5719148936170212,
+        "any_hit_at_1": 0.8893617021276595,
+        "recall_all_at_5": 0.8382978723404255,
+        "fractional_at_5": 0.915390070921986,
+        "any_hit_at_5": 0.9744680851063829,
+        "recall_all_at_10": 0.9085106382978724,
+        "fractional_at_10": 0.9534397163120569,
+        "any_hit_at_10": 0.9872340425531915,
+        "ndcg_at_10": 0.9077983689170428
+      },
+      "independent_score_audit": {
+        "upstream_revision": "3f8784d10c2e996873d4392b85226a5d042def0e",
+        "source_sha256": {
+          "load.ts": "4e15e3c6968cc558c40982b117beea981a6366942cb97473e2848f043169d0a1",
+          "score.ts": "51ed764b1747db26d70aecd8b677e22923ea38ccbf4c97ec782da612fea1bcb6"
+        },
+        "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+        "checked": 500,
+        "scored": 470,
+        "unanswerable": 30,
+        "mismatches": 0,
+        "scores_sha256": "1545c50a2328e6631a3dc49d4e2adcfce30296045d85edd08f7b4d7b4861c4e5",
+        "evidence_sha256": "df188e4f4e6f74427fdb51434c70424ff37afa8a78938a237b1b1a36a1a8d48c"
+      }
+    },
+    "mempalace-raw": {
+      "metrics": {
+        "n": 470,
+        "recall_all_at_1": 0.28297872340425534,
+        "fractional_at_1": 0.5223404255319152,
+        "any_hit_at_1": 0.8170212765957446,
+        "recall_all_at_5": 0.8574468085106383,
+        "fractional_at_5": 0.9210283687943263,
+        "any_hit_at_5": 0.9659574468085106,
+        "recall_all_at_10": 0.9340425531914893,
+        "fractional_at_10": 0.9631205673758866,
+        "any_hit_at_10": 0.9829787234042553,
+        "ndcg_at_10": 0.8847636581908058
+      },
+      "independent_score_audit": {
+        "upstream_revision": "3f8784d10c2e996873d4392b85226a5d042def0e",
+        "source_sha256": {
+          "load.ts": "4e15e3c6968cc558c40982b117beea981a6366942cb97473e2848f043169d0a1",
+          "score.ts": "51ed764b1747db26d70aecd8b677e22923ea38ccbf4c97ec782da612fea1bcb6"
+        },
+        "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+        "checked": 500,
+        "scored": 470,
+        "unanswerable": 30,
+        "mismatches": 0,
+        "scores_sha256": "ab22be04b4125c3d553d8529f8a50016171b9770b64dc0b696556637491ef084",
+        "evidence_sha256": "0a374cc1261b9a63eb8f5070fa33a52222f5ac6f4574ff53703f238ddc2f86bd"
+      }
+    },
+    "memspace-relation-pack": {
+      "metrics": {
+        "n": 470,
+        "recall_all_at_1": 0.3,
+        "fractional_at_1": 0.5557446808510637,
+        "any_hit_at_1": 0.8680851063829788,
+        "recall_all_at_5": 0.725531914893617,
+        "fractional_at_5": 0.8277659574468086,
+        "any_hit_at_5": 0.925531914893617,
+        "recall_all_at_10": 0.725531914893617,
+        "fractional_at_10": 0.8277659574468086,
+        "any_hit_at_10": 0.925531914893617,
+        "ndcg_at_10": 0.8311549596793185
+      },
+      "independent_score_audit": {
+        "upstream_revision": "3f8784d10c2e996873d4392b85226a5d042def0e",
+        "source_sha256": {
+          "load.ts": "4e15e3c6968cc558c40982b117beea981a6366942cb97473e2848f043169d0a1",
+          "score.ts": "51ed764b1747db26d70aecd8b677e22923ea38ccbf4c97ec782da612fea1bcb6"
+        },
+        "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+        "checked": 500,
+        "scored": 470,
+        "unanswerable": 30,
+        "mismatches": 0,
+        "scores_sha256": "31e81651089a919457d65486ef220b88868d8e329f112408230839e494490184",
+        "evidence_sha256": "d725552d5d50e6bd746b6ed2c274b6dab406e1036417dad996b830cc7e74185f"
+      }
+    },
+    "deja-prompt-hook": {
+      "metrics": {
+        "n": 470,
+        "recall_all_at_1": 0.13617021276595745,
+        "fractional_at_1": 0.2815248226950354,
+        "any_hit_at_1": 0.44680851063829785,
+        "recall_all_at_5": 0.18085106382978725,
+        "fractional_at_5": 0.3077659574468085,
+        "any_hit_at_5": 0.44680851063829785,
+        "recall_all_at_10": 0.18085106382978725,
+        "fractional_at_10": 0.3077659574468085,
+        "any_hit_at_10": 0.44680851063829785,
+        "ndcg_at_10": 0.33870202137823313
+      },
+      "independent_score_audit": {
+        "upstream_revision": "3f8784d10c2e996873d4392b85226a5d042def0e",
+        "source_sha256": {
+          "load.ts": "4e15e3c6968cc558c40982b117beea981a6366942cb97473e2848f043169d0a1",
+          "score.ts": "51ed764b1747db26d70aecd8b677e22923ea38ccbf4c97ec782da612fea1bcb6"
+        },
+        "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+        "checked": 500,
+        "scored": 470,
+        "unanswerable": 30,
+        "mismatches": 0,
+        "scores_sha256": "ef1b7012acb0664ed77bade305e203cd1df5da57b3c4c34d3458bdf188da9fae",
+        "evidence_sha256": "e2903f4809f5d7ead84166193352e65b3af0466b20e236fb065543e2f076226a"
+      }
+    }
+  },
+  "final_context": {
+    "deja-native-hook": {
+      "covered": 500,
+      "scored": 470,
+      "all_sources_in_final_text": 85,
+      "all_sources_rate": 0.18085106382978725,
+      "nonempty": 250,
+      "empty": 250,
+      "mean_chars_all_500": 880.15,
+      "mean_chars_positive_470": 897.1978723404255,
+      "mean_utf8_bytes_all_500": 887.238,
+      "mean_context_tokens_cl100k_base": 212.976,
+      "max_chars": 1913,
+      "source_mean_positive": 0.5893617021276596
+    },
+    "memspace-frozen-relation-pack": {
+      "covered": 500,
+      "scored": 470,
+      "all_sources_in_final_text": 341,
+      "all_sources_rate": 0.725531914893617,
+      "nonempty": 484,
+      "empty": 16,
+      "mean_chars_all_500": 3427.638,
+      "mean_chars_positive_470": 3478.7872340425533,
+      "mean_utf8_bytes_all_500": 3445.23,
+      "mean_context_tokens_cl100k_base": 986.746,
+      "max_chars": 5635,
+      "source_mean_positive": 2.423404255319149
+    }
+  },
+  "qa": {
+    "answer_model": "gpt-4.1-mini-2025-04-14",
+    "judge_model": "gpt-4o-mini-2024-07-18",
+    "temperature": 0,
+    "correct_off": 269,
+    "correct_on": 305,
+    "wins": 63,
+    "losses": 27,
+    "unchanged": 410,
+    "same_snapshot_controls_passed": 500,
+    "mean_context_characters_off": 2361.87,
+    "mean_context_characters_on": 3427.638,
+    "single_run_per_arm": true
+  },
+  "limits": [
+    "Source session coverage does not prove that answer-bearing facts survived in an excerpt.",
+    "Native default modes differ in budgets, input roles and injection policies; not an equal-budget leaderboard.",
+    "No autonomous follow-up tools or host-side context processing measured.",
+    "QA is one model-dependent paired run; not human-verified truth or a cross-vendor QA ranking.",
+    "English dataset; no mixed-language, project-isolation, synchronization, live latency or RSS claim.",
+    "Public receipts contain source IDs and scores only. Full output texts, source snapshots and native hook observation driver remain local; this release supports independent rescoring, not a self-contained full native-hook rerun.",
+    "MemPalace native benchmark pads rankings after its genuine top 50 with remaining corpus indices. Preserved tail is not actual retrieval; all published ranking metrics use K <= 10."
+  ]
+}

@@ -287,9 +287,94 @@ source relationships without changing injected context; `on` additionally packs
 validated related sources together within the existing fragment/character
 budgets. Native question/answer references and generator provenance are captured;
 scoped corrections and exact document citations require explicit retained source
-references. This is experimental and is not a claim of improved benchmark
-accuracy. See [evidence relationships](internal/evidence/README.md) for the
-configuration, source/version checks, limitations and inspection API.
+references. This remains experimental; the fixed benchmark results below do
+not establish a general accuracy gain. See
+[evidence relationships](internal/evidence/README.md) for the configuration,
+source/version checks, limitations and inspection API.
+
+## Benchmarks
+
+Measured on 2026-11-01 using the author-published **LongMemEval-S cleaned**
+dataset: all 500 questions covered; source-retrieval metrics exclude the 30
+unanswerable questions and score the remaining 470. The exact dataset SHA256,
+versions, aggregate results and per-question scores are in the
+[benchmark record](scripts/bench/results/2026-11-01/README.md).
+
+**No reranker is used in these MemSpace results.** Retrieval uses keyword
+search and BGE-M3 embeddings, fused with Reciprocal Rank Fusion, followed by
+source validation, admission rules and context packing. Memory extraction and
+relationship capture do not require an LLM. Separate offline reranker
+experiments are not part of these configurations.
+
+### What we measure
+
+- **Source retrieval:** whether the first five distinct returned sessions
+  contain **every** required source. Finding one source is not enough.
+- **Delivered context:** whether every required source survives into the
+  actual context text prepared for the agent. This does **not** prove the
+  excerpt retains every fact needed to answer.
+- **Question answering:** a fixed reader answers from that context and a
+  fixed judge grades the answer. This is a separate, model-dependent metric.
+
+### Delivered context
+
+Both modes cover the same 500 questions; source coverage is scored on 470.
+Text length includes empty outputs across all 500 questions.
+
+| Configuration | All required sources in final context | Mean characters | Empty outputs |
+|---|---:|---:|---:|
+| MemSpace, experimental relation packing enabled | 341/470 **72.55%** | 3428 | 16/500 |
+| deja-vu, native per-prompt hook defaults | 85/470 **18.09%** | 880 | 250/500 |
+
+These are **different native policies and budgets, not an equal-budget
+leaderboard**. MemSpace allows six source fragments and 6000 characters;
+deja-vu's picker allows two sessions and uses its native 1536 budget constant
+plus framing rules. It often declines automatic injection and supports later
+agent-initiated recall, which this measurement excludes. MemSpace reuses the
+frozen evaluation pack; deja-vu runs its actual `hook-prompt` command and we
+read `hookSpecificOutput.additionalContext`. Neither measures host-side
+processing or a complete live agent conversation. Relation packing remains
+off by default in MemSpace.
+
+### Source retrieval components
+
+| Pinned native configuration | All required sources in top 5 | At least one required source in top 5 |
+|---|---:|---:|
+| agentmemory BM25 component | 398/470 **84.68%** | 96.17% |
+| deja-vu keyword search | 394/470 **83.83%** | 97.45% |
+| MemPalace raw vector search | 403/470 **85.74%** | 96.60% |
+
+These use whole-session retrieval and are **not final injection scores**;
+do not rank them against MemSpace's 72.55% context result. MemPalace's native
+raw benchmark retains user turns only; deja-vu retains both roles. Each mode's
+500 per-question source scores were checked against agentmemory's pinned
+original loader/scorer, with zero mismatches. These source-only replications
+and the final-hook measurement made no generative model API calls.
+
+### Controlled question-answering experiment
+
+Using the pinned OmniMemEval harness, both MemSpace arms start from identical
+database snapshots and use the same worker, embeddings, source data and
+six-fragment/6000-character ceilings. Only relation packing changes.
+
+| Relation packing | Correct answers, all 500 questions | Mean context characters |
+|---|---:|---:|
+| Off | 269/500 **53.8%** | 2362 |
+| On | 305/500 **61.0%** | 3428 |
+
+The reader was `gpt-4.1-mini-2025-04-14`; the judge was
+`gpt-4o-mini-2024-07-18`, both at temperature 0. The enabled arm gains 63
+answers and loses 27: **+7.2 percentage points**, with more context actually
+delivered despite equal ceilings. This was one answer/judge run per arm,
+not human-verified truth or a comparison with other vendors' QA scores.
+These previously completed QA runs used model APIs; no new QA calls were
+made for the source-only comparisons.
+
+Reproduction: [source scorer](scripts/bench/retrieval_peers/README.md),
+[OmniMemEval adapter and paired run](scripts/bench/omnimemeval/README.md),
+and [versions and score receipts](scripts/bench/results/2026-11-01/README.md).
+This English dataset does not measure mixed-language retrieval, production
+latency/RSS, cross-project isolation or multi-device synchronization.
 
 ## Web UI and administration
 
