@@ -66,9 +66,11 @@ func Compute(ctx context.Context, db *sql.DB, sessionID string) (*Summary, strin
 	if err != nil {
 		return nil, "", err
 	}
+	// A source may only timestamp the whole session. Preserve its recorded
+	// sequence before using the namespace-dependent event ID as a fallback.
 	rows, err := db.QueryContext(ctx, `
 		SELECT event_id, event_type, occurred_at, payload_json FROM events
-		WHERE session_id = ? ORDER BY occurred_at, event_id`, sessionID)
+		WHERE session_id = ? ORDER BY occurred_at, sequence_number, event_id`, sessionID)
 	if err != nil {
 		return nil, "", err
 	}

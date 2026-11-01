@@ -71,6 +71,43 @@ func TestProductionIngestReplayAndConflictingRetry(t *testing.T) {
 		t.Fatal("query or conflict wrote events")
 	}
 }
+
+// Imports preserve their recorded source order even when the source provides
+// only a session-level timestamp. Namespace hashes must not choose the first
+// question, latest question or last answer in the summary.
+func TestImportedEqualTimestampSummaryUsesSourceOrder(t *testing.T) {
+	for _, key := range []string{strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)} {
+		t.Run(key[:1], func(t *testing.T) {
+			en, err := open(filepath.Join(canonicalTempDir(t), "user"), key, "", "BAAI/bge-m3", "context_pack")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer en.d.Close()
+			ctx := context.Background()
+			stamp := "2023-04-01T00:00:00Z"
+			r := request{Session: "source-session", Batch: "source-batch", Messages: []message{
+				{Role: "user", Content: "First question: how many staging database connections?", ChatTime: stamp},
+				{Role: "assistant", Content: "First answer: staging uses 8; production stays 4.", ChatTime: stamp},
+				{Role: "user", Content: "Last question: how long do we retain backups?", ChatTime: stamp},
+				{Role: "assistant", Content: "Last answer: retain backups for 7 days.", ChatTime: stamp},
+			}}
+			if _, err := en.add(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+			var session string
+			if err := en.d.QueryRow(`SELECT session_id FROM events LIMIT 1`).Scan(&session); err != nil {
+				t.Fatal(err)
+			}
+			s, _, err := summary.Compute(ctx, en.d, session)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if s.Objective != r.Messages[0].Content || s.LatestRequest != r.Messages[2].Content || s.CompletedWork != r.Messages[3].Content {
+				t.Fatalf("source order changed: objective=%q latest=%q reply=%q", s.Objective, s.LatestRequest, s.CompletedWork)
+			}
+		})
+	}
+}
 func TestValidationBeforeWritingAndOwnership(t *testing.T) {
 	en := testEngine(t)
 	r := request{Session: "s", Batch: "b", Messages: []message{{Role: "user", Content: "valid", ChatTime: "2025-01-01T00:00:00Z"}, {Role: "assistant", Content: "invalid timestamp", ChatTime: ""}}}

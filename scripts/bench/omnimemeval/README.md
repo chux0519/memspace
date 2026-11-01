@@ -64,6 +64,30 @@ MEMSPACE_TEST_WORKER=/absolute/path/to/omnimemeval-worker \
 go test -tags sqlite_fts5 ./scripts/bench/omnimemeval/worker ./internal/contextpack
 ```
 
+For a controlled relation-packaging ablation, `paired.py` prepares each source
+once with shadow capture, stops the worker, and copies that exact database for
+off/on queries. Each pair checks byte-identical initial databases and unchanged
+source/index document content after querying. The same frozen worker, source
+identity, roles, timestamps, index and budgets are used; query order alternates
+by index. Each source snapshot and RPC receipts are retained privately. Use a
+new output directory and version for each attempt:
+
+```bash
+python scripts/bench/omnimemeval/paired.py \
+  --dataset /private/longmemeval_s_cleaned.json \
+  --binary /private/frozen-worker --harness /path/to/pinned/OmniMemEval \
+  --embedding-url http://127.0.0.1:18792/v1/embeddings \
+  --out /private/new-paired-run --version paired_run_1 \
+  --env-file /private/official-answer-and-judge.env
+```
+
+Omit `--env-file` for retrieval only. Otherwise official steps 3–6 run for both
+arms and all requested indices must succeed before a paired QA report is made.
+Keep the official dated answer/judge models in the env file. A single model run
+still has sampling/judge uncertainty. This controls query packaging, not capture
+cost, production latency or memory use. Fresh baselines are required after a
+summary-ordering fix; do not reuse a prior score as the new off arm.
+
 The overlay validates pinned source hashes and refuses unrelated edits. Review
 its diff, docs and upstream offline test output before proposing a contribution.
 It does not change answer/judge prompts, rerun failed questions for favorable
