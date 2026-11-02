@@ -5,19 +5,18 @@ DeepSeek Harness (DSH) sessions on all your machines flow into one server;
 a new session, on any device and with any of these agents, picks up where
 the last one left off.
 
-- **Cross-device, cross-agent:** sessions from every connected machine and
-  agent are stored per project (identified by Git remote), with branch and
-  HEAD per device.
-- **Automatic context:** at session start an agent gets a card for recent
-  unfinished work; on each prompt, related history. On demand through MCP.
-- **Multilingual search:** optional semantic search with bge-m3 understands
+- Sessions from every connected machine and agent are stored per project
+  (identified by Git remote), with branch and HEAD per device.
+- At session start an agent gets a card for recent unfinished work, and on
+  each prompt it gets related history. It can also recall history through MCP.
+- Optional semantic search with bge-m3 understands
   100+ languages (e.g. English, Chinese, Japanese, Korean, Spanish, French,
   German, Portuguese, Russian, Arabic) and matches across them; keyword
   search works without it, with jieba segmentation and pinyin for Chinese.
-- **No LLM required:** session summaries and memories are rule-based.
-- **Reliable capture:** hooks never block the agent; events are spooled
+- Session summaries and memories are rule-based and need no LLM.
+- Hooks never block the agent; events are spooled
   locally, survive being offline and are deduplicated by the server.
-- **Web UI:** overview, projects, sessions with full timelines, search,
+- The web UI has an overview, projects, sessions with full timelines, search,
   memories, devices and administration (invites, revocation).
 
 ```text
@@ -106,8 +105,7 @@ Agents reach MemSpace's MCP tools through a local stdio bridge,
 configs hold only that command, and nothing needs to be exported in your
 shell.
 
-**Or let your agent do it.** Say this to Claude Code or Codex on the new
-device:
+For setup through Claude Code or Codex, send the agent this on the new device:
 
 ```text
 Set up MemSpace on this machine: follow
@@ -118,7 +116,7 @@ The agent asks where your server is, installs the client, and tells you
 the code to approve; it asks before changing its own configuration. See
 [docs/agent-setup.md](docs/agent-setup.md).
 
-Step by step instead:
+To connect and install hooks separately:
 
 ```bash
 memspace client connect http://SERVER:8765   # asks for approval (or --invite msi_…); saves ~/.memspace/credentials.json
@@ -280,6 +278,38 @@ Scripts to reproduce: `scripts/bench/`.
   retries with backoff, queries fall back to keywords.
 - **Status:** `GET /api/v1/embedding/status`, shown by `memspace agent doctor`.
 
+### How RRF ranks results
+
+Keyword search and vector search each produce a ranked list. Reciprocal Rank
+Fusion (RRF) adds a vote for a document's position in each list:
+
+```text
+score(document) = sum(1 / (60 + rank))
+```
+
+Ranks start at 1. Both lists have equal weight; a document present in only one
+gets one vote. For example, keyword rank 1 plus vector rank 5 scores about
+0.03178; keyword rank 2 alone scores about 0.01613. Raw BM25 scores and cosine
+similarities have different scales, so RRF combines their ranks. Ties keep
+the first-seen order, with keyword results added first. The implementation
+merges by document ID and retains semantic similarity for later admission
+checks. See [`fuse`](internal/search/query.go).
+
+The constant `60`, named `rrfK` in the code, dates to the initial
+implementation. It has no config setting. We have not established which
+value works best for this workload. RRF uses no learned weights or extra
+inference model.
+
+RRF orders candidates. Separate rules decide what enters the context: the
+six-fragment prompt path requests up to 48 search results, keeps up to 24
+after source deduplication, then applies admission and packing. With BGE-M3's
+default hybrid policy, a hit can qualify through cosine similarity >= 0.60,
+an exact keyword match, or partial keyword coverage >= 0.50. These admission
+settings are configurable under `[context]`; they are compatibility defaults,
+not thresholds proven best across datasets. The final cap remains six
+fragments and 6000 characters. [Admission comparisons](scripts/bench/ADMISSION.md)
+describe the controls and calibration procedure.
+
 ## Experimental evidence relationships
 
 The optional `[evidence]` setting defaults to `mode = "off"`. `shadow` records
@@ -294,27 +324,25 @@ source/version checks, limitations and inspection API.
 
 ## Benchmarks
 
-Measured on 2026-11-01 using the author-published **LongMemEval-S cleaned**
-dataset: all 500 questions covered; source-retrieval metrics exclude the 30
-unanswerable questions and score the remaining 470. The exact dataset SHA256,
-versions, aggregate results and per-question scores are in the
+We test retrieval and context packing separately on the author-published
+LongMemEval-S cleaned dataset. Each public-data run covers all 500 questions.
+Source metrics score the 470 answerable questions; QA includes the 30
+unanswerable questions too. Results are from 2026-10-30 and 2026-11-01. Dataset
+hashes, versions and per-question scores are in the
 [benchmark record](scripts/bench/results/2026-11-01/README.md).
 
-**No reranker is used in these MemSpace results.** Retrieval uses keyword
-search and BGE-M3 embeddings, fused with Reciprocal Rank Fusion, followed by
-source validation, admission rules and context packing. Memory extraction and
-relationship capture do not require an LLM. Separate offline reranker
-experiments are not part of these configurations.
+The MemSpace configurations below use no reranker or LLM memory extraction.
+The bounded context pack uses keyword search plus BGE-M3 and RRF. The
+whole-session BM25 component is keyword-only. The QA experiment adds a reader
+and judge after retrieval.
 
 ### What we measure
 
-- **Source retrieval:** whether the first five distinct returned sessions
-  contain **every** required source. Finding one source is not enough.
-- **Delivered context:** whether every required source survives into the
-  actual context text prepared for the agent. This does **not** prove the
-  excerpt retains every fact needed to answer.
-- **Question answering:** a fixed reader answers from that context and a
-  fixed judge grades the answer. This is a separate, model-dependent metric.
+Source retrieval asks whether the first five distinct sessions contain every
+required source. Delivered-context coverage asks whether those sources survive
+into the text prepared for the agent. A short excerpt can cite the right
+session while omitting the answer, so we report QA separately: a fixed reader
+answers from the context and a fixed judge grades it.
 
 ### Delivered context
 
@@ -323,33 +351,56 @@ Text length includes empty outputs across all 500 questions.
 
 | Configuration | All required sources in final context | Mean characters | Empty outputs |
 |---|---:|---:|---:|
-| MemSpace, experimental relation packing enabled | 341/470 **72.55%** | 3428 | 16/500 |
-| deja-vu, native per-prompt hook defaults | 85/470 **18.09%** | 880 | 250/500 |
+| MemSpace, experimental relation packing enabled | 341/470 (72.55%) | 3428 | 16/500 |
+| deja-vu, native per-prompt hook defaults | 85/470 (18.09%) | 880 | 250/500 |
 
-These are **different native policies and budgets, not an equal-budget
-leaderboard**. MemSpace allows six source fragments and 6000 characters;
-deja-vu's picker allows two sessions and uses its native 1536 budget constant
-plus framing rules. It often declines automatic injection and supports later
-agent-initiated recall, which this measurement excludes. MemSpace reuses the
-frozen evaluation pack; deja-vu runs its actual `hook-prompt` command and we
-read `hookSpecificOutput.additionalContext`. Neither measures host-side
-processing or a complete live agent conversation. Relation packing remains
-off by default in MemSpace.
+MemSpace retains all required source sessions for roughly three out of four
+answerable questions within its bounded pack. In this comparison it delivers
+more history up front and uses about 3.9 times as much text as deja-vu.
+The policies differ: MemSpace allows six fragments and 6000 characters;
+deja-vu's picker allows two sessions and uses a native 1536 budget constant
+plus framing rules. It often declines automatic injection and leaves further
+recall to the agent. We have not compared the two at an equal budget.
+
+For MemSpace we reuse the frozen evaluation pack. For deja-vu we run its
+actual `hook-prompt` command and read
+`hookSpecificOutput.additionalContext`. Host-side processing and subsequent
+agent tool calls are outside this measurement. The MemSpace result uses
+experimental relation packing, which remains off by default.
 
 ### Source retrieval components
 
 | Pinned native configuration | All required sources in top 5 | At least one required source in top 5 |
 |---|---:|---:|
-| agentmemory BM25 component | 398/470 **84.68%** | 96.17% |
-| deja-vu keyword search | 394/470 **83.83%** | 97.45% |
-| MemPalace raw vector search | 403/470 **85.74%** | 96.60% |
+| MemSpace whole-session BM25 + Porter, exact English words | 403/470 (85.74%) | 97.02% |
+| agentmemory BM25 component | 398/470 (84.68%) | 96.17% |
+| deja-vu keyword search | 394/470 (83.83%) | 97.45% |
+| MemPalace raw vector search | 403/470 (85.74%) | 96.60% |
+| agentmemory's grep baseline | 339/470 (72.13%) | 88.72% |
 
-These use whole-session retrieval and are **not final injection scores**;
-do not rank them against MemSpace's 72.55% context result. MemPalace's native
-raw benchmark retains user turns only; deja-vu retains both roles. Each mode's
-500 per-question source scores were checked against agentmemory's pinned
-original loader/scorer, with zero mismatches. These source-only replications
-and the final-hook measurement made no generative model API calls.
+MemSpace's BM25 result is five questions, or 1.06 percentage points, above
+agentmemory's. It wins 11 paired cases and loses six; the difference is small
+and not statistically significant (exact McNemar p = 0.332). These public
+questions were used during development, so the result needs confirmation on
+new data. Earlier MemSpace variants and their regressions remain in the
+[full retrieval comparison](scripts/bench/LONGMEMEVAL.md).
+
+The MemSpace BM25 and agentmemory baselines index supplied whole sessions,
+bypassing capture and context packing. This gives the retrieval component
+access to more text than the bounded injection path. MemPalace's raw vector
+benchmark retains user turns only; deja-vu retains both roles. The 85.74%
+BM25 result and 72.55% delivered-context result therefore describe different
+paths, rather than a measured before/after drop in the same pipeline.
+
+The final BM25 rerun measured query p50/p95 of 26.6/71.6 ms, versus roughly
+3.1/3.6 ms for agentmemory. MemSpace used SQLite and worker IPC; agentmemory
+used an in-memory JavaScript index. These timings describe the component
+runners on one machine and exclude live hook and answer latency.
+
+All source scores use agentmemory's pinned loader/scorer. The five published
+2026-11-01 modes each passed an independent 500-question score check with
+zero mismatches. Source-only replications and the final-hook measurement
+made no generative model API calls.
 
 ### Controlled question-answering experiment
 
@@ -359,16 +410,32 @@ six-fragment/6000-character ceilings. Only relation packing changes.
 
 | Relation packing | Correct answers, all 500 questions | Mean context characters |
 |---|---:|---:|
-| Off | 269/500 **53.8%** | 2362 |
-| On | 305/500 **61.0%** | 3428 |
+| Off | 269/500 (53.8%) | 2362 |
+| On | 305/500 (61.0%) | 3428 |
 
 The reader was `gpt-4.1-mini-2025-04-14`; the judge was
 `gpt-4o-mini-2024-07-18`, both at temperature 0. The enabled arm gains 63
-answers and loses 27: **+7.2 percentage points**, with more context actually
-delivered despite equal ceilings. This was one answer/judge run per arm,
-not human-verified truth or a comparison with other vendors' QA scores.
-These previously completed QA runs used model APIs; no new QA calls were
-made for the source-only comparisons.
+answers and loses 27, a gain of 7.2 percentage points. The enabled pack uses
+more of the available character budget. Each arm had one answer/judge run;
+the labels have not been checked against human judgments. These completed
+QA runs used model APIs; the later source-only comparisons reused the packs
+without new QA calls. Comparing this 61.0% with a vendor's QA score would
+also require matching its reader, judge and input pipeline.
+
+### Other completed experiments
+
+On a separate internal 100-question coding regression, the 79 positive
+questions eligible for automatic injection scored 57/79 (72.2%) under the
+baseline and 67/79 (84.8%) in an offline BGE reranker replay. The latter was
+a dev-selected experiment; it is absent from the product configurations
+above. CPU reranker time at 12 candidates was p50 0.86 s and p95 4.62 s,
+before retrieval and packing, exceeding the hook's 1.5 s total deadline on
+some requests. See the [reranker study](scripts/bench/RERANK.md).
+
+The EverOS comparison was invalidated after we found that our adapter had
+reordered source messages. It has no valid comparative score here.
+Hindsight and Nautilus Compass informed implementation research; we have
+not completed equivalent product benchmarks for them.
 
 Reproduction: [source scorer](scripts/bench/retrieval_peers/README.md),
 [OmniMemEval adapter and paired run](scripts/bench/omnimemeval/README.md),
