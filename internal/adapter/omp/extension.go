@@ -113,26 +113,40 @@ export default function memspace(pi) {
 		}
 	};
 
+	// Records a session boundary and injects its hand-off card. omp emits
+	// session_start only for the session the process loaded; /new and
+	// /resume switch sessions in place and emit session_switch instead.
+	const announceStart = async (ctx, source) => {
+		const id = sessionId(ctx);
+		if (!id) return;
+		cwds.set(id, cwds.get(id) || ctx.cwd || "");
+		const out = await runHook({
+			session_id: id,
+			cwd: cwds.get(id) || ctx.cwd || "",
+			hook_event_name: "SessionStart",
+			source,
+			model: ctx.model ? String(ctx.model.provider || "") + "/" + String(ctx.model.id || "") : "",
+			transcript_path: sessionFile(ctx),
+		});
+		const text = additionalContext(out);
+		if (text) {
+			pi.sendMessage(
+				{ customType: "memspace-context", content: text, display: false, attribution: "agent" },
+				{ deliverAs: "nextTurn" },
+			);
+		}
+	};
+
 	pi.on("session_start", async (_event, ctx) => {
 		try {
-			const id = sessionId(ctx);
-			if (!id) return;
-			cwds.set(id, ctx.cwd || "");
-			const out = await runHook({
-				session_id: id,
-				cwd: ctx.cwd || "",
-				hook_event_name: "SessionStart",
-				source: "startup",
-				model: ctx.model ? String(ctx.model.provider || "") + "/" + String(ctx.model.id || "") : "",
-				transcript_path: sessionFile(ctx),
-			});
-			const text = additionalContext(out);
-			if (text) {
-				pi.sendMessage(
-					{ customType: "memspace-context", content: text, display: false, attribution: "agent" },
-					{ deliverAs: "nextTurn" },
-				);
-			}
+			await announceStart(ctx, "startup");
+		} catch {}
+	});
+
+	pi.on("session_switch", async (event, ctx) => {
+		try {
+			const reason = event && event.reason;
+			await announceStart(ctx, reason === "resume" ? "resume" : reason === "fork" ? "fork" : "startup");
 		} catch {}
 	});
 

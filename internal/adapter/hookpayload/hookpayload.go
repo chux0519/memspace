@@ -9,6 +9,9 @@ package hookpayload
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -91,7 +94,10 @@ func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd 
 
 	case "PostToolUse", "PostToolUseFailure":
 		failed := in.HookEventName == "PostToolUseFailure"
-		toolInput, response := sanitizeTool(in.ToolName, in.ToolInput, in.ToolResponse)
+		files := AppliedFiles(in.ToolName, in.ToolInput, in.ToolResponse, in.Cwd)
+		referenced := ReferencedFiles(in.ToolName, in.ToolInput, in.ToolResponse, in.Cwd)
+		sensitive := sensitiveInput(in.ToolInput, referenced)
+		toolInput, response := sanitizeTool(in.ToolInput, in.ToolResponse, sensitive)
 		p := map[string]any{
 			"tool_name": in.ToolName, "tool_use_id": in.ToolUseID, "tool_input": toolInput,
 			"duration_ms": in.DurationMS, "prompt_id": in.PromptID,
@@ -109,11 +115,11 @@ func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd 
 			id = adapter.StableID("cc", sid, typ, in.ToolUseID)
 		}
 		out := []spool.Record{rec(id, typ, p)}
-		if !failed && IsFileTool(in.ToolName) {
-			if path := FilePath(in.ToolInput); path != "" {
+		if !failed {
+			for _, path := range files {
 				fid := adapter.RandomID("cc")
 				if in.ToolUseID != "" {
-					fid = adapter.StableID("cc", sid, "file.modified", in.ToolUseID)
+					fid = adapter.StableID("cc", sid, "file.modified", in.ToolUseID, path)
 				}
 				out = append(out, rec(fid, "file.modified", map[string]any{
 					"path": path, "tool_name": in.ToolName, "tool_use_id": in.ToolUseID,
@@ -140,36 +146,196 @@ func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd 
 	return nil, nil
 }
 
-// FilePath returns the file a tool modified, when the tool names one.
+// FilePath returns the single file a tool names in its input, when it names
+// one directly.
 func FilePath(toolInput map[string]any) string {
 	for _, k := range []string{"file_path", "notebook_path", "path"} {
 		if s, ok := toolInput[k].(string); ok && s != "" {
 			return s
 		}
 	}
-	// omp's ast_edit takes a list of files, directories or globs.
-	if list, ok := toolInput["paths"].([]any); ok && len(list) > 0 {
-		if s, ok := list[0].(string); ok {
-			return s
-		}
-	}
 	return ""
 }
 
-// fileTools modify the file named in tool_input. Names are compared
+// fileTools modify the files named in tool_input. Names are compared
 // case-insensitively: Claude Code sends "Write", omp sends "write".
 var fileTools = map[string]bool{"write": true, "edit": true, "multiedit": true, "notebookedit": true, "ast_edit": true}
 
-// IsFileTool reports whether a tool writes the file named in its input.
+// IsFileTool reports whether a tool writes files.
 func IsFileTool(name string) bool { return fileTools[strings.ToLower(name)] }
+
+// AppliedFiles is the set of files the tool actually changed.
+//
+// omp's ast_edit rewrites files, directories and globs, so its input names
+// targets, not results: a preview or a zero-replacement run changes nothing,
+// and one glob can hit several files. Its tool response carries the applied
+// file list, which is what MemSpace records. A write to an internal xd:// URL
+// dispatches another tool; that tool's result is nested under
+// tool_response.xdev.inner.sourceResultDetails, so the write's own "path"
+// is never recorded as a changed file. Every other file tool names its single
+// target in the input.
+func AppliedFiles(name string, toolInput map[string]any, response any, cwd string) []string {
+	if resultAuthoritative(name, response) {
+		if _, applied, ok := resultFiles(name, response); ok {
+			return resolvePaths(cwd, applied)
+		}
+	}
+	lower := strings.ToLower(name)
+	if !fileTools[lower] {
+		return nil
+	}
+	p := FilePath(toolInput)
+	if p == "" || isInternalURL(p) {
+		return nil
+	}
+	return []string{p}
+}
+
+// ReferencedFiles is every file the tool's result mentions, including files an
+// ast_edit preview would touch. Sensitivity checks use it so staged edits of
+// secret files are redacted even before they are applied.
+func ReferencedFiles(name string, toolInput map[string]any, response any, cwd string) []string {
+	files := pathsOf(toolInput)
+	if resultAuthoritative(name, response) {
+		if all, _, ok := resultFiles(name, response); ok {
+			files = append(files, all...)
+		}
+	}
+	return resolvePaths(cwd, files)
+}
+
+// resultAuthoritative reports whether the response, not the input, names the
+// files a tool changed. That is true for xd:// dispatch results and for
+// ast_edit's applied/preview details; a plain write reports bytes, not paths.
+func resultAuthoritative(name string, response any) bool {
+	if m, _ := response.(map[string]any); m != nil {
+		if _, ok := xdevSourceDetails(m); ok {
+			return true
+		}
+	}
+	return strings.EqualFold(name, "ast_edit")
+}
+
+// resultFiles extracts the files and applied files from a structured tool
+// result, unwrapping an xd:// dispatch when present.
+func resultFiles(name string, response any) (all, applied []string, ok bool) {
+	m, _ := response.(map[string]any)
+	if m == nil {
+		return nil, nil, false
+	}
+	if inner, found := xdevSourceDetails(m); found {
+		m = inner
+	} else if !IsFileTool(name) {
+		return nil, nil, false
+	}
+	files := stringList(m["files"])
+	if list, ok := m["fileReplacements"].([]any); ok {
+		for _, item := range list {
+			if entry, ok := item.(map[string]any); ok {
+				if p, ok := entry["path"].(string); ok && p != "" {
+					files = append(files, p)
+				}
+			}
+		}
+	}
+	files = dedupePaths(files)
+	appliedOK := true
+	if v, ok := m["applied"].(bool); ok && !v {
+		appliedOK = false
+	}
+	if n, ok := m["totalReplacements"].(float64); ok && n <= 0 {
+		appliedOK = false
+	}
+	if appliedOK {
+		applied = files
+	}
+	return files, applied, true
+}
+
+// xdevSourceDetails unwraps the device result of a write to an internal URL.
+func xdevSourceDetails(m map[string]any) (map[string]any, bool) {
+	xdev, _ := m["xdev"].(map[string]any)
+	inner, _ := xdev["inner"].(map[string]any)
+	src, _ := inner["sourceResultDetails"].(map[string]any)
+	return src, src != nil
+}
+
+func isInternalURL(p string) bool {
+	return strings.Contains(p, "://")
+}
+
+func dedupePaths(paths []string) []string {
+	seen := make(map[string]bool, len(paths))
+	out := paths[:0]
+	for _, p := range paths {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+// resolvePaths makes relative result paths absolute against the session cwd
+// and removes duplicates while keeping order.
+func resolvePaths(cwd string, paths []string) []string {
+	seen := make(map[string]bool, len(paths))
+	var out []string
+	for _, p := range paths {
+		if p == "" || isInternalURL(p) {
+			continue
+		}
+		if !filepath.IsAbs(p) && cwd != "" {
+			p = filepath.Join(cwd, p)
+		}
+		p = filepath.Clean(p)
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+func stringList(v any) []string {
+	switch list := v.(type) {
+	case []any:
+		out := make([]string, 0, len(list))
+		for _, item := range list {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []string:
+		return list
+	case string:
+		if list != "" {
+			return []string{list}
+		}
+	}
+	return nil
+}
+
+// pathsOf returns every path a tool input names.
+func pathsOf(toolInput map[string]any) []string {
+	var out []string
+	if p := FilePath(toolInput); p != "" {
+		out = append(out, p)
+	}
+	out = append(out, stringList(toolInput["paths"])...)
+	return out
+}
 
 // sanitizeTool drops captured content of secret files and of shell commands
 // that read them.
-func sanitizeTool(tool string, toolInput map[string]any, response any) (map[string]any, any) {
+func sanitizeTool(toolInput map[string]any, response any, sensitive bool) (map[string]any, any) {
 	if toolInput == nil {
 		toolInput = map[string]any{}
 	}
-	if !sensitiveInput(toolInput) {
+	if !sensitive {
 		return toolInput, response
 	}
 	for _, k := range []string{"content", "new_string", "old_string", "edits", "new_source", "pat", "out"} {
@@ -191,11 +357,13 @@ func sanitizeTool(tool string, toolInput map[string]any, response any) (map[stri
 	return toolInput, adapter.OmittedSensitive
 }
 
-// sensitiveInput reports whether any file the tool touches is sensitive:
-// a single path, any entry of paths, or a shell command that reads one.
-func sensitiveInput(toolInput map[string]any) bool {
-	for _, path := range pathsOf(toolInput) {
-		if redact.SensitivePath(path) {
+// sensitiveInput reports whether any file the tool touches is sensitive.
+// Directories and globs are expanded, bounded, so "config/*.json" that hits
+// config/secrets.json is treated as sensitive even though the input string
+// itself is not a sensitive name. files are the applied results.
+func sensitiveInput(toolInput map[string]any, files []string) bool {
+	for _, path := range append(pathsOf(toolInput), files...) {
+		if pathSensitive(path) {
 			return true
 		}
 	}
@@ -205,32 +373,52 @@ func sensitiveInput(toolInput map[string]any) bool {
 	return false
 }
 
-// pathsOf returns every path named by a tool input, including omp's ast_edit
-// paths (which may target files, directories or globs).
-func pathsOf(toolInput map[string]any) []string {
-	var out []string
-	for _, k := range []string{"file_path", "notebook_path", "path"} {
-		if s, ok := toolInput[k].(string); ok && s != "" {
-			out = append(out, s)
-		}
+// scanLimit bounds directory walks and glob expansion done from a hook, so
+// inspecting a large tree never delays the agent.
+const scanLimit = 4096
+
+// pathSensitive resolves a literal path, a glob, or a directory to the files
+// it stands for and reports whether any of them is sensitive.
+func pathSensitive(p string) bool {
+	if p == "" {
+		return false
 	}
-	switch v := toolInput["paths"].(type) {
-	case []any:
-		for _, item := range v {
-			if s, ok := item.(string); ok && s != "" {
-				out = append(out, s)
+	if redact.SensitivePath(p) {
+		return true
+	}
+	if strings.ContainsAny(p, "*?[") {
+		matches, err := filepath.Glob(p)
+		if err != nil {
+			return false
+		}
+		if len(matches) > scanLimit {
+			matches = matches[:scanLimit]
+		}
+		for _, match := range matches {
+			if redact.SensitivePath(match) {
+				return true
 			}
 		}
-	case []string:
-		for _, s := range v {
-			if s != "" {
-				out = append(out, s)
-			}
-		}
-	case string:
-		if v != "" {
-			out = append(out, v)
-		}
+		return false
 	}
-	return out
+	info, err := os.Stat(p)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	found, visited := false, 0
+	filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		visited++
+		if visited > scanLimit {
+			return filepath.SkipAll
+		}
+		if !d.IsDir() && redact.SensitivePath(path) {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }

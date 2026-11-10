@@ -69,7 +69,8 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		t.Fatal(err)
 	}
 	var promptIDs []string
-	var tool, start map[string]any
+	var tool map[string]any
+	var starts []map[string]any
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -85,7 +86,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		case "PostToolUse":
 			tool = payload
 		case "SessionStart":
-			start = payload
+			starts = append(starts, payload)
 		}
 	}
 	// input, before_agent_start, retry, second identical input, prompt.
@@ -105,8 +106,15 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	if response["output"] != "hi\n" || response["exitCode"] != float64(0) {
 		t.Errorf("tool_response lost content or details: %v", response)
 	}
-	if start == nil || start["model"] != "alibaba/deepseek" {
-		t.Errorf("session.started payload = %v", start)
+	if len(starts) != 2 {
+		t.Fatalf("session.started payloads = %v", starts)
+	}
+	if starts[0]["model"] != "alibaba/deepseek" || starts[0]["session_id"] != "probe-session" {
+		t.Errorf("first session.started = %v", starts[0])
+	}
+	// /new switches sessions in place; the new session must still start.
+	if starts[1]["session_id"] != "probe-session-2" || starts[1]["source"] != "startup" {
+		t.Errorf("session_switch was not recorded: %v", starts[1])
 	}
 }
 
@@ -125,9 +133,10 @@ factory({
 	},
 });
 
+let currentSession = "probe-session";
 const ctx = {
 	cwd: "/tmp",
-	sessionManager: { getSessionId: () => "probe-session", getSessionFile: () => "/tmp/probe.jsonl" },
+	sessionManager: { getSessionId: () => currentSession, getSessionFile: () => "/tmp/" + currentSession + ".jsonl" },
 	model: { provider: "alibaba", id: "deepseek" },
 };
 const emit = async (name, event) => {
@@ -167,6 +176,10 @@ await emit("session_stop", {
 	session_id: "probe-session",
 	last_assistant_message: { content: [{ type: "text", text: "DONE" }] },
 });
+
+// /new keeps the process but switches sessions.
+currentSession = "probe-session-2";
+await emit("session_switch", { type: "session_switch", reason: "new", previousSessionFile: "/tmp/probe-session.jsonl" });
 
 process.stdout.write(JSON.stringify({ ticks: ticksDuring, sent: sent.length }) + "\n");
 `

@@ -20,12 +20,13 @@ func TestNormalizeHookPayloads(t *testing.T) {
 		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "SessionStart", "source": "startup", "model": "alibaba/deepseek", "transcript_path": "/tmp/s1.jsonl"},
 		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "UserPromptSubmit", "prompt": "修复登录超时", "prompt_id": "p1"},
 		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "PostToolUse", "tool_name": "write", "tool_use_id": "call_1", "tool_input": map[string]any{"path": "/repo/main.go"}, "tool_response": map[string]any{"bytes": 10}},
-		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "PostToolUse", "tool_name": "ast_edit", "tool_use_id": "call_3", "tool_input": map[string]any{"paths": []any{"/repo/lib.go"}}},
+		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "PostToolUse", "tool_name": "ast_edit", "tool_use_id": "call_3", "tool_input": map[string]any{"paths": []any{"/repo/*.go"}}, "tool_response": map[string]any{"applied": true, "totalReplacements": float64(2), "files": []any{"/repo/lib.go", "/repo/other.go"}}},
 		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "PostToolUseFailure", "tool_name": "bash", "tool_use_id": "call_2", "tool_input": map[string]any{"command": "false"}, "error": "exit 1"},
 		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "Stop", "last_assistant_message": "done"},
 		{"session_id": "s1", "cwd": "/tmp", "hook_event_name": "SessionEnd", "reason": "shutdown"},
 	}
 	var recs []struct {
+		id   string
 		typ  string
 		body map[string]any
 	}
@@ -44,16 +45,17 @@ func TestNormalizeHookPayloads(t *testing.T) {
 				t.Fatal(err)
 			}
 			recs = append(recs, struct {
+				id   string
 				typ  string
 				body map[string]any
-			}{r.EventType, body})
+			}{r.EventID, r.EventType, body})
 		}
 	}
 	var types []string
 	for _, r := range recs {
 		types = append(types, r.typ)
 	}
-	want := "session.started user.prompt tool.completed file.modified tool.completed file.modified tool.failed agent.turn_completed session.ended"
+	want := "session.started user.prompt tool.completed file.modified tool.completed file.modified file.modified tool.failed agent.turn_completed session.ended"
 	if got := strings.Join(types, " "); got != want {
 		t.Fatalf("types = %s", got)
 	}
@@ -63,14 +65,17 @@ func TestNormalizeHookPayloads(t *testing.T) {
 	if p := recs[3].body["path"]; p != "/repo/main.go" {
 		t.Errorf("file.modified path = %v", p)
 	}
-	if recs[5].body["path"] != "/repo/lib.go" {
-		t.Errorf("ast_edit file.modified = %v", recs[5].body)
+	if recs[5].body["path"] != "/repo/lib.go" || recs[6].body["path"] != "/repo/other.go" {
+		t.Errorf("ast_edit file.modified = %v / %v", recs[5].body, recs[6].body)
 	}
-	if recs[6].body["error"] != "exit 1" {
-		t.Errorf("failure = %v", recs[6].body)
+	if recs[5].id == recs[6].id {
+		t.Error("each modified file needs its own event id")
 	}
-	if recs[7].body["last_assistant_message"] != "done" {
-		t.Errorf("stop = %v", recs[7].body)
+	if recs[7].body["error"] != "exit 1" {
+		t.Errorf("failure = %v", recs[7].body)
+	}
+	if recs[8].body["last_assistant_message"] != "done" {
+		t.Errorf("stop = %v", recs[8].body)
 	}
 }
 
