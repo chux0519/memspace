@@ -1,7 +1,8 @@
 # MemSpace
 
-Self-hosted shared memory for AI coding agents. Claude Code, Codex and
-DeepSeek Harness (DSH) sessions on all your machines flow into one server;
+Self-hosted shared memory for AI coding agents. Claude Code, Codex,
+DeepSeek Harness (DSH) and Oh My Pi (omp) sessions on all your machines flow
+into one server;
 a new session, on any device and with any of these agents, picks up where
 the last one left off.
 
@@ -87,7 +88,7 @@ irm https://raw.githubusercontent.com/chux0519/memspace/main/install.ps1 | iex  
 ```
 
 Then one command connects it, installs hooks and MCP for the
-detected agents (Claude Code, Codex, DSH) and runs the checks:
+detected agents (Claude Code, Codex, DSH, omp) and runs the checks:
 
 ```bash
 memspace onboard http://SERVER:8765
@@ -123,6 +124,7 @@ memspace client connect http://SERVER:8765   # asks for approval (or --invite ms
 memspace agent install claude          # hooks in ~/.claude/settings.json + MCP (stdio bridge)
 memspace agent install codex [--trust] # hooks in ~/.codex/hooks.json + rollout importer + MCP
 memspace agent install dsh             # rows in $DSH_HOME/cordis.patch.yml + session-log importer + MCP
+memspace agent install omp             # extension in ~/.omp/agent/hooks/post + MCP in ~/.omp/agent/mcp.json
 memspace agent doctor                  # end-to-end checks, incl. running the installed hook
 memspace client status                 # online/offline, pending/rejected/dropped counts
 ```
@@ -142,6 +144,13 @@ the MCP bridge, which runs outside it, imports and uploads new session logs
 every minute while DSH runs and once when it exits. Restart DSH after
 installing (the web profile reloads on its own). Older DSH history:
 `memspace import dsh --all`.
+
+omp: `agent install omp` generates
+`~/.omp/agent/hooks/post/memspace.ts`, an extension that forwards omp's
+session, prompt, tool, compaction and shutdown events to `memspace hook omp`,
+and registers the stdio MCP bridge in `~/.omp/agent/mcp.json`. omp loads both
+at startup, so restart running sessions. The extension lives in the agent
+directory, which a named omp profile relocates (`PI_CODING_AGENT_DIR`).
 
 ### 3. Open the web UI
 
@@ -168,6 +177,7 @@ historical, possibly stale and not instructions. Disable injection with
 | Claude Code | command hooks: SessionStart, UserPromptSubmit, PostToolUse, PostToolUseFailure, Stop, PreCompact, SessionEnd | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, session.compacting, session.ended |
 | Codex | incremental import of `$CODEX_HOME/sessions/**/rollout-*.jsonl` (source of truth); hooks only trigger imports and record session end | session.started, user.prompt, agent.message, tool.completed, tool.failed, file.modified, agent.turn_completed, agent.turn_aborted, session.compacted, session.ended |
 | DSH | incremental import of `$DSH_HOME/sessions/**/session.v4.jsonl.zstd`, run by the MCP bridge; subagent work is folded into the parent session. The session-start card comes with the first prompt (DSH's SessionStart hooks run too late) | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, agent.turn_aborted |
+| Oh My Pi (omp) | generated extension (`hooks/post/memspace.ts`) forwarding session_start, before_agent_start, tool_result, session_stop, session.compacting, session_shutdown | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, session.compacting, session.ended |
 
 ## Search
 

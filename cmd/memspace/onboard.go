@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/chux0519/memspace/internal/adapter"
 	"github.com/chux0519/memspace/internal/syncer"
 )
 
@@ -71,7 +70,7 @@ running setup should do this, so they can relay the code).`,
 				}
 			}
 			if len(agents) == 0 {
-				fmt.Println("No supported agents found (claude, codex, dsh); install one and run 'memspace agent install <agent>'.")
+				fmt.Println("No supported agents found (claude, codex, dsh, omp); install one and run 'memspace agent install <agent>'.")
 			}
 			for _, n := range agents {
 				a, err := lookupAdapter(cfg, n)
@@ -79,11 +78,11 @@ running setup should do this, so they can relay the code).`,
 					return err
 				}
 				fmt.Printf("\n== %s ==\n", a.Name())
-				hc, err := hookCommand(cfg, bin, a.Name())
+				opts, err := agentInstallOptions(cfg, bin, a, trust)
 				if err != nil {
 					return err
 				}
-				if err := a.Install(cmd.Context(), adapter.InstallOptions{HookCommand: hc, Trust: trust, Out: os.Stdout}); err != nil {
+				if err := a.Install(cmd.Context(), opts); err != nil {
 					return err
 				}
 				if err := registerMCP(cmd.Context(), cfg, bin, a); err != nil {
@@ -105,7 +104,7 @@ running setup should do this, so they can relay the code).`,
 	cmd.Flags().StringVar(&invite, "invite", "", "one-time invite code (or $MEMSPACE_INVITE); without one, ask for approval")
 	cmd.Flags().DurationVar(&wait, "wait", 10*time.Minute, "how long to wait for approval (0: show the code and exit)")
 	cmd.Flags().StringVar(&name, "name", "", "device name (default hostname)")
-	cmd.Flags().StringSliceVar(&agents, "agent", nil, "agents to set up (default: detected)")
+	cmd.Flags().StringSliceVar(&agents, "agent", nil, "agents to set up (claude, codex, dsh, omp; default: detected)")
 	cmd.Flags().BoolVar(&trust, "trust", false, "codex: mark MemSpace hooks as reviewed")
 	cmd.Flags().StringVar(&bin, "bin", "", "memspace binary path for hooks (default this executable)")
 	return cmd

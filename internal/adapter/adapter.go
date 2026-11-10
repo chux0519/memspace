@@ -78,6 +78,9 @@ type InstallOptions struct {
 	// HookCommand is the shell command the agent runs for each hook, e.g.
 	// `"/usr/local/bin/memspace" hook claude`.
 	HookCommand string
+	// HookArgv is HookCommand as an argument vector, for agents that start
+	// hooks without a shell (omp's generated extension).
+	HookArgv []string
 	// Trust pre-approves the installed hooks where the agent requires review
 	// (Codex). Only set when the user asked for it explicitly.
 	Trust bool
