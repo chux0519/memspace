@@ -18,6 +18,7 @@ import (
 	"github.com/chux0519/memspace/internal/adapter/claudecode"
 	"github.com/chux0519/memspace/internal/adapter/codex"
 	"github.com/chux0519/memspace/internal/adapter/dsh"
+	"github.com/chux0519/memspace/internal/adapter/omp"
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/inject"
@@ -29,7 +30,7 @@ import (
 func agentCmd(use string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
-		Short: "Install, remove and check coding-agent integrations (claude, codex, dsh)",
+		Short: "Install, remove and check coding-agent integrations (claude, codex, dsh, omp)",
 	}
 	if use != "agent" {
 		cmd.Hidden = true
@@ -40,6 +41,20 @@ func agentCmd(use string) *cobra.Command {
 
 // hookCommand is the command line agents run, pinned to this binary and to
 // any non-default --home/--config so hooks find the same client state.
+// agentInstallOptions builds the hook command and the same command as an
+// argument vector, for adapters whose hooks do not run through a shell.
+func agentInstallOptions(cfg *config.Config, bin string, a adapter.Adapter, trust bool) (adapter.InstallOptions, error) {
+	hc, err := hookCommand(cfg, bin, a.Name())
+	if err != nil {
+		return adapter.InstallOptions{}, err
+	}
+	argv, err := selfArgv(cfg, bin, "hook", a.Name())
+	if err != nil {
+		return adapter.InstallOptions{}, err
+	}
+	return adapter.InstallOptions{HookCommand: hc, HookArgv: argv, Trust: trust, Out: os.Stdout}, nil
+}
+
 func hookCommand(cfg *config.Config, bin, agent string) (string, error) {
 	if agent == "dsh" && dsh.HooksRunInPowerShell {
 		argv, err := selfArgv(cfg, bin, "hook", agent)
@@ -69,14 +84,17 @@ func selfArgv(cfg *config.Config, bin string, args ...string) ([]string, error) 
 		if err != nil {
 			return nil, err
 		}
-		if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-			exe = resolved
-		}
 		bin = exe
 	}
 	bin, err := filepath.Abs(bin)
 	if err != nil {
 		return nil, err
+	}
+	// Hooks run long after they are installed: record the resolved path so a
+	// symlinked or temporary launcher (macOS /tmp -> /private/tmp) still
+	// compares equal to the binary running now.
+	if resolved, err := filepath.EvalSymlinks(bin); err == nil {
+		bin = resolved
 	}
 	home := ""
 	if cfg.Client.Home != config.Default().Client.Home || homeFlag != "" {
@@ -131,7 +149,7 @@ func agentInstallCmd() *cobra.Command {
 	var bin string
 	var trust, noMCP bool
 	cmd := &cobra.Command{
-		Use:   "install <claude|codex|dsh>",
+		Use:   "install <claude|codex|dsh|omp>",
 		Short: "Register MemSpace hooks with an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -143,7 +161,7 @@ func agentInstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			hc, err := hookCommand(cfg, bin, a.Name())
+			opts, err := agentInstallOptions(cfg, bin, a, trust)
 			if err != nil {
 				return err
 			}
@@ -155,7 +173,7 @@ func agentInstallCmd() *cobra.Command {
 			if d := a.Detect(cmd.Context()); !d.Found {
 				fmt.Printf("Warning: %s does not appear to be installed; configuring anyway.\n", a.Name())
 			}
-			if err := a.Install(cmd.Context(), adapter.InstallOptions{HookCommand: hc, Trust: trust, Out: os.Stdout}); err != nil {
+			if err := a.Install(cmd.Context(), opts); err != nil {
 				return err
 			}
 			if _, err := syncer.LoadCredentials(cfg.Client.CredentialsPath()); err != nil {
@@ -176,7 +194,7 @@ func agentInstallCmd() *cobra.Command {
 
 func agentUninstallCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "uninstall <claude|codex|dsh>",
+		Use:   "uninstall <claude|codex|dsh|omp>",
 		Short: "Remove MemSpace hooks from an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -198,7 +216,7 @@ func agentUninstallCmd() *cobra.Command {
 
 func agentDoctorCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "doctor [claude|codex|dsh]...",
+		Use:   "doctor [claude|codex|dsh|omp]...",
 		Short: "Check that capture and upload work end to end",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
@@ -215,8 +233,8 @@ func agentDoctorCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				hc, _ := hookCommand(cfg, "", a.Name())
-				checks := a.Doctor(cmd.Context(), adapter.InstallOptions{HookCommand: hc})
+				opts, _ := agentInstallOptions(cfg, "", a, false)
+				checks := a.Doctor(cmd.Context(), opts)
 				if len(args) == 0 && !installed(checks) {
 					fmt.Printf("\n%s: not installed (memspace agent install %s)\n", a.Name(), a.Name())
 					continue
@@ -440,6 +458,8 @@ func agentType(a adapter.Adapter) string {
 		return codex.AgentType
 	case *dsh.Adapter:
 		return dsh.AgentType
+	case *omp.Adapter:
+		return omp.AgentType
 	}
 	return claudecode.AgentType
 }

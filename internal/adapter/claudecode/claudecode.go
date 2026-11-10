@@ -18,9 +18,7 @@ import (
 	"time"
 
 	"github.com/chux0519/memspace/internal/adapter"
-	"github.com/chux0519/memspace/internal/project"
-	"github.com/chux0519/memspace/internal/prompt"
-	"github.com/chux0519/memspace/internal/redact"
+	"github.com/chux0519/memspace/internal/adapter/hookpayload"
 	"github.com/chux0519/memspace/internal/spool"
 )
 
@@ -176,30 +174,6 @@ func samplePostToolUse() []byte {
 // ---------------------------------------------------------------------------
 // Normalization
 
-// input is the union of the hook payload fields MemSpace uses.
-type input struct {
-	SessionID            string         `json:"session_id"`
-	TranscriptPath       string         `json:"transcript_path"`
-	Cwd                  string         `json:"cwd"`
-	HookEventName        string         `json:"hook_event_name"`
-	PermissionMode       string         `json:"permission_mode"`
-	Source               string         `json:"source"`
-	Model                string         `json:"model"`
-	Prompt               string         `json:"prompt"`
-	PromptID             string         `json:"prompt_id"`
-	ToolName             string         `json:"tool_name"`
-	ToolInput            map[string]any `json:"tool_input"`
-	ToolResponse         any            `json:"tool_response"`
-	ToolUseID            string         `json:"tool_use_id"`
-	Error                string         `json:"error"`
-	IsInterrupt          bool           `json:"is_interrupt"`
-	DurationMS           *int64         `json:"duration_ms"`
-	LastAssistantMessage string         `json:"last_assistant_message"`
-	Reason               string         `json:"reason"`
-	Trigger              string         `json:"trigger"`
-	CustomInstructions   string         `json:"custom_instructions"`
-}
-
 // ProjectDirEnv is set by Claude Code for hook commands: the directory the
 // session was started in. DSH's hook bridge sets it too.
 const ProjectDirEnv = "CLAUDE_PROJECT_DIR"
@@ -214,126 +188,8 @@ func ProjectDir(cwd string) string {
 	return cwd
 }
 
-// fileTools modify the file named in tool_input.file_path / notebook_path.
-var fileTools = map[string]bool{"Write": true, "Edit": true, "MultiEdit": true, "NotebookEdit": true}
-
 // Normalize maps one hook invocation to MemSpace events. Unknown or
 // uninteresting hook events yield no events.
 func (a *Adapter) Normalize(raw []byte, now time.Time) ([]spool.Record, error) {
-	var in input
-	if err := json.Unmarshal(raw, &in); err != nil {
-		return nil, fmt.Errorf("claude hook: parse input: %w", err)
-	}
-	if in.SessionID == "" || in.HookEventName == "" {
-		return nil, fmt.Errorf("claude hook: session_id and hook_event_name are required")
-	}
-	hint := project.Detect(ProjectDir(in.Cwd))
-	rec := func(id, typ string, payload map[string]any) spool.Record {
-		return spool.Record{
-			EventID:         id,
-			Agent:           AgentType,
-			NativeSessionID: in.SessionID,
-			EventType:       typ,
-			OccurredAt:      now.UTC(),
-			Project:         hint,
-			Payload:         adapter.Payload(payload),
-		}
-	}
-	sid := in.SessionID
-
-	switch in.HookEventName {
-	case "SessionStart":
-		return []spool.Record{rec(adapter.RandomID("cc"), "session.started", map[string]any{
-			"source": in.Source, "model": in.Model, "cwd": in.Cwd,
-			"permission_mode": in.PermissionMode, "transcript_path": in.TranscriptPath,
-		})}, nil
-
-	case "UserPromptSubmit":
-		id := adapter.RandomID("cc")
-		if in.PromptID != "" {
-			id = adapter.StableID("cc", sid, "prompt", in.PromptID)
-		}
-		p := prompt.Payload(in.Prompt)
-		p["prompt_id"], p["cwd"] = in.PromptID, in.Cwd
-		return []spool.Record{rec(id, "user.prompt", p)}, nil
-
-	case "PostToolUse", "PostToolUseFailure":
-		failed := in.HookEventName == "PostToolUseFailure"
-		toolInput, response := sanitizeTool(in.ToolName, in.ToolInput, in.ToolResponse)
-		p := map[string]any{
-			"tool_name": in.ToolName, "tool_use_id": in.ToolUseID, "tool_input": toolInput,
-			"duration_ms": in.DurationMS, "prompt_id": in.PromptID,
-		}
-		typ := "tool.completed"
-		if failed {
-			typ = "tool.failed"
-			p["error"] = in.Error
-			p["is_interrupt"] = in.IsInterrupt
-		} else {
-			p["tool_response"] = response
-		}
-		id := adapter.RandomID("cc")
-		if in.ToolUseID != "" {
-			id = adapter.StableID("cc", sid, typ, in.ToolUseID)
-		}
-		out := []spool.Record{rec(id, typ, p)}
-		if !failed && fileTools[in.ToolName] {
-			if path := filePath(in.ToolInput); path != "" {
-				fid := adapter.RandomID("cc")
-				if in.ToolUseID != "" {
-					fid = adapter.StableID("cc", sid, "file.modified", in.ToolUseID)
-				}
-				out = append(out, rec(fid, "file.modified", map[string]any{
-					"path": path, "tool_name": in.ToolName, "tool_use_id": in.ToolUseID,
-				}))
-			}
-		}
-		return out, nil
-
-	case "Stop":
-		return []spool.Record{rec(adapter.RandomID("cc"), "agent.turn_completed", map[string]any{
-			"last_assistant_message": in.LastAssistantMessage, "prompt_id": in.PromptID,
-		})}, nil
-
-	case "PreCompact":
-		return []spool.Record{rec(adapter.RandomID("cc"), "session.compacting", map[string]any{
-			"trigger": in.Trigger, "custom_instructions": in.CustomInstructions,
-		})}, nil
-
-	case "SessionEnd":
-		return []spool.Record{rec(adapter.RandomID("cc"), "session.ended", map[string]any{
-			"reason": in.Reason,
-		})}, nil
-	}
-	return nil, nil
-}
-
-func filePath(toolInput map[string]any) string {
-	for _, k := range []string{"file_path", "notebook_path", "path"} {
-		if s, ok := toolInput[k].(string); ok && s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
-// sanitizeTool drops captured content of secret files and of shell commands
-// that read them.
-func sanitizeTool(tool string, toolInput map[string]any, response any) (map[string]any, any) {
-	if toolInput == nil {
-		toolInput = map[string]any{}
-	}
-	sensitive := redact.SensitivePath(filePath(toolInput))
-	if cmd, ok := toolInput["command"].(string); ok && adapter.MentionsSensitivePath(cmd) {
-		sensitive = true
-	}
-	if !sensitive {
-		return toolInput, response
-	}
-	for _, k := range []string{"content", "new_string", "old_string", "edits", "new_source"} {
-		if _, ok := toolInput[k]; ok {
-			toolInput[k] = adapter.OmittedSensitive
-		}
-	}
-	return toolInput, adapter.OmittedSensitive
+	return hookpayload.Normalize(AgentType, raw, now, ProjectDir)
 }
