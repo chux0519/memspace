@@ -108,8 +108,12 @@ func TestExtensionSourceEmbedsArgv(t *testing.T) {
 	if !strings.Contains(text, string(encoded)) {
 		t.Errorf("argv %s not embedded", encoded)
 	}
-	if !strings.Contains(text, `pi.on("tool_result"`) || !strings.Contains(text, `pi.on("session_shutdown"`) {
+	if !strings.Contains(text, `pi.on("tool_result"`) || !strings.Contains(text, `pi.on("session_shutdown"`) ||
+		!strings.Contains(text, `pi.on("input"`) {
 		t.Error("expected lifecycle handlers")
+	}
+	if strings.Contains(text, "spawnSync") || !strings.Contains(text, "spawn(HOOK_ARGV[0]") {
+		t.Error("hooks must run asynchronously")
 	}
 }
 

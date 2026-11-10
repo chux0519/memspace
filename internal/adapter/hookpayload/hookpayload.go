@@ -169,17 +169,68 @@ func sanitizeTool(tool string, toolInput map[string]any, response any) (map[stri
 	if toolInput == nil {
 		toolInput = map[string]any{}
 	}
-	sensitive := redact.SensitivePath(FilePath(toolInput))
-	if cmd, ok := toolInput["command"].(string); ok && adapter.MentionsSensitivePath(cmd) {
-		sensitive = true
-	}
-	if !sensitive {
+	if !sensitiveInput(toolInput) {
 		return toolInput, response
 	}
-	for _, k := range []string{"content", "new_string", "old_string", "edits", "new_source"} {
+	for _, k := range []string{"content", "new_string", "old_string", "edits", "new_source", "pat", "out"} {
 		if _, ok := toolInput[k]; ok {
 			toolInput[k] = adapter.OmittedSensitive
 		}
 	}
+	// omp's ast_edit carries the matched text and its replacement in ops.
+	if ops, ok := toolInput["ops"].([]any); ok {
+		for _, op := range ops {
+			m, _ := op.(map[string]any)
+			for _, k := range []string{"pat", "out"} {
+				if _, ok := m[k]; ok {
+					m[k] = adapter.OmittedSensitive
+				}
+			}
+		}
+	}
 	return toolInput, adapter.OmittedSensitive
+}
+
+// sensitiveInput reports whether any file the tool touches is sensitive:
+// a single path, any entry of paths, or a shell command that reads one.
+func sensitiveInput(toolInput map[string]any) bool {
+	for _, path := range pathsOf(toolInput) {
+		if redact.SensitivePath(path) {
+			return true
+		}
+	}
+	if cmd, ok := toolInput["command"].(string); ok && adapter.MentionsSensitivePath(cmd) {
+		return true
+	}
+	return false
+}
+
+// pathsOf returns every path named by a tool input, including omp's ast_edit
+// paths (which may target files, directories or globs).
+func pathsOf(toolInput map[string]any) []string {
+	var out []string
+	for _, k := range []string{"file_path", "notebook_path", "path"} {
+		if s, ok := toolInput[k].(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	switch v := toolInput["paths"].(type) {
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+	case []string:
+		for _, s := range v {
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+	case string:
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
