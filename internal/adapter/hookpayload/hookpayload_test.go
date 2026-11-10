@@ -260,3 +260,19 @@ func TestXDPreviewSensitiveIsRedacted(t *testing.T) {
 	}
 	_ = secret
 }
+
+// A failing tool that names a secret file must not quote it in error.
+func TestSensitiveFailureErrorIsRedacted(t *testing.T) {
+	payload, raw := normalizeTool(t, map[string]any{
+		"session_id": "s", "cwd": "/tmp", "hook_event_name": "PostToolUseFailure",
+		"tool_name": "write", "tool_use_id": "toolu_fail",
+		"tool_input": map[string]any{"file_path": "/repo/secrets.json", "content": `{"token":"s3cr3t"}`},
+		"error":      `write /repo/secrets.json: invalid content {"token":"s3cr3t"}`,
+	})
+	if strings.Contains(raw, "s3cr3t") {
+		t.Fatalf("error text leaked: %s", raw)
+	}
+	if payload["error"] != adapter.OmittedSensitive {
+		t.Errorf("error = %v", payload["error"])
+	}
+}

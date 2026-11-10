@@ -97,6 +97,8 @@ export default function memspace(pi) {
 	// identity across before_agent_start re-entry, but two identical prompts
 	// are two submissions and must both be recorded.
 	const submissions = new Map();
+	// The session this process is bound to, so a switch can end it.
+	let currentSession = "";
 
 	const sessionId = (ctx) => {
 		try {
@@ -119,6 +121,7 @@ export default function memspace(pi) {
 	const announceStart = async (ctx, source) => {
 		const id = sessionId(ctx);
 		if (!id) return;
+		currentSession = id;
 		cwds.set(id, cwds.get(id) || ctx.cwd || "");
 		const out = await runHook({
 			session_id: id,
@@ -146,6 +149,19 @@ export default function memspace(pi) {
 	pi.on("session_switch", async (event, ctx) => {
 		try {
 			const reason = event && event.reason;
+			const previous = currentSession;
+			const id = sessionId(ctx);
+			// /new and /resume leave the old session for good; record its end
+			// so it is not reported as unfinished work. A fork keeps the
+			// original session usable, so it stays open.
+			if (previous && previous !== id && reason !== "fork") {
+				await runHook({
+					session_id: previous,
+					cwd: cwds.get(previous) || ctx.cwd || "",
+					hook_event_name: "SessionEnd",
+					reason: "switch",
+				});
+			}
 			await announceStart(ctx, reason === "resume" ? "resume" : reason === "fork" ? "fork" : "startup");
 		} catch {}
 	});

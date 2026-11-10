@@ -105,7 +105,12 @@ func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd 
 		typ := "tool.completed"
 		if failed {
 			typ = "tool.failed"
+			// A failed edit of a secret file often quotes the secret in its
+			// error text, so the failure carries the same redaction.
 			p["error"] = in.Error
+			if sensitive {
+				p["error"] = adapter.OmittedSensitive
+			}
 			p["is_interrupt"] = in.IsInterrupt
 		} else {
 			p["tool_response"] = response

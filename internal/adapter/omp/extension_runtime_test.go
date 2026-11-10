@@ -71,6 +71,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	var promptIDs []string
 	var tool map[string]any
 	var starts []map[string]any
+	var ends []map[string]any
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -87,6 +88,8 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 			tool = payload
 		case "SessionStart":
 			starts = append(starts, payload)
+		case "SessionEnd":
+			ends = append(ends, payload)
 		}
 	}
 	// input, before_agent_start, retry, second identical input, prompt.
@@ -115,6 +118,16 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	// /new switches sessions in place; the new session must still start.
 	if starts[1]["session_id"] != "probe-session-2" || starts[1]["source"] != "startup" {
 		t.Errorf("session_switch was not recorded: %v", starts[1])
+	}
+	// The session the process left must be closed, or it looks unfinished.
+	if len(ends) != 2 {
+		t.Fatalf("session.ended payloads = %v", ends)
+	}
+	if ends[0]["session_id"] != "probe-session" || ends[0]["reason"] != "switch" {
+		t.Errorf("previous session was not ended on switch: %v", ends[0])
+	}
+	if ends[1]["session_id"] != "probe-session-2" || ends[1]["reason"] != "shutdown" {
+		t.Errorf("shutdown end = %v", ends[1])
 	}
 }
 
@@ -180,6 +193,7 @@ await emit("session_stop", {
 // /new keeps the process but switches sessions.
 currentSession = "probe-session-2";
 await emit("session_switch", { type: "session_switch", reason: "new", previousSessionFile: "/tmp/probe-session.jsonl" });
+await emit("session_shutdown", { type: "session_shutdown" });
 
 process.stdout.write(JSON.stringify({ ticks: ticksDuring, sent: sent.length }) + "\n");
 `
