@@ -347,7 +347,7 @@ func (t *tools) getMemory(ctx context.Context, _ *mcp.CallToolRequest, a GetMemo
 
 type HistoryArgs struct {
 	ProjectArgs
-	Agent string `json:"agent,omitempty" jsonschema:"filter by agent: claude-code, codex, dsh or omp"`
+	Agent string `json:"agent,omitempty" jsonschema:"filter by agent: claude-code, codex, dsh, omp or pi"`
 	Limit int    `json:"limit,omitempty" jsonschema:"maximum sessions (default 10, max 50)"`
 }
 

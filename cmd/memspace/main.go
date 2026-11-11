@@ -20,6 +20,7 @@ import (
 	"github.com/chux0519/memspace/internal/adapter/codex"
 	"github.com/chux0519/memspace/internal/adapter/dsh"
 	"github.com/chux0519/memspace/internal/adapter/omp"
+	"github.com/chux0519/memspace/internal/adapter/pi"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/db"
 	"github.com/chux0519/memspace/internal/embedding"
@@ -101,10 +102,11 @@ func adapters(cfg *config.Config) map[string]adapter.Adapter {
 		"codex":  &codex.Adapter{StateDir: cfg.Client.StateDir()},
 		"dsh":    &dsh.Adapter{StateDir: cfg.Client.StateDir()},
 		"omp":    &omp.Adapter{},
+		"pi":     &pi.Adapter{},
 	}
 }
 
-var adapterOrder = []string{"claude", "codex", "dsh", "omp"}
+var adapterOrder = []string{"claude", "codex", "dsh", "omp", "pi"}
 
 func lookupAdapter(cfg *config.Config, name string) (adapter.Adapter, error) {
 	switch name {
@@ -113,7 +115,7 @@ func lookupAdapter(cfg *config.Config, name string) (adapter.Adapter, error) {
 	}
 	a, ok := adapters(cfg)[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown agent %q (supported: claude, codex, dsh, omp)", name)
+		return nil, fmt.Errorf("unknown agent %q (supported: claude, codex, dsh, omp, pi)", name)
 	}
 	return a, nil
 }

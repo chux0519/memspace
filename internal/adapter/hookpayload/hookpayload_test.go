@@ -276,3 +276,104 @@ func TestSensitiveFailureErrorIsRedacted(t *testing.T) {
 		t.Errorf("error = %v", payload["error"])
 	}
 }
+
+// The shared rules stay the default: a tool that is not a known file tool does
+// not report changed files, whatever its result names.
+func TestDefaultRulesIgnoreFilesOfOtherTools(t *testing.T) {
+	for _, rules := range []Rules{{}, {ResultFilesAnyTool: false}} {
+		raw, _ := json.Marshal(map[string]any{
+			"session_id": "s", "cwd": "/tmp", "hook_event_name": "PostToolUse",
+			"tool_name": "apply_patch", "tool_use_id": "call_1",
+			"tool_input":    map[string]any{"patch": "*** Begin Patch"},
+			"tool_response": map[string]any{"applied": true, "files": []any{"/tmp/a.go", "/tmp/b.go"}},
+		})
+		recs, err := NormalizeWith("claude-code", raw, time.Now(), nil, rules)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range recs {
+			if r.EventType == "file.modified" {
+				t.Errorf("rules %+v recorded %s", rules, r.Payload)
+			}
+		}
+	}
+}
+
+// ResultFilesAnyTool trusts an applied-file list from any tool, and still
+// requires the application flag: a preview or a zero-replacement run changes
+// nothing.
+func TestResultFilesAnyToolRules(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"session_id": "s", "cwd": "/tmp", "hook_event_name": "PostToolUse",
+		"tool_name": "apply_patch", "tool_use_id": "call_1",
+		"tool_input":    map[string]any{"patch": "*** Begin Patch"},
+		"tool_response": map[string]any{"applied": true, "files": []any{"/tmp/a.go", "/tmp/b.go"}},
+	})
+	recs, err := NormalizeWith("pi", raw, time.Now(), nil, Rules{ResultFilesAnyTool: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, r := range recs {
+		if r.EventType != "file.modified" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(r.Payload, &p); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, p["path"].(string))
+	}
+	if len(paths) != 2 || paths[0] != "/tmp/a.go" || paths[1] != "/tmp/b.go" {
+		t.Fatalf("paths = %v", paths)
+	}
+
+	for name, response := range map[string]map[string]any{
+		"preview": map[string]any{"applied": false, "files": []any{"/tmp/a.go"}},
+		"zero":    map[string]any{"totalReplacements": float64(0), "fileReplacements": []any{map[string]any{"path": "/tmp/a.go"}}},
+		"listing": map[string]any{"files": []any{"/tmp/a.go"}},
+	} {
+		raw, _ := json.Marshal(map[string]any{
+			"session_id": "s", "cwd": "/tmp", "hook_event_name": "PostToolUse",
+			"tool_name": "apply_patch", "tool_use_id": "call_" + name,
+			"tool_input":    map[string]any{"patch": "*** Begin Patch"},
+			"tool_response": response,
+		})
+		recs, err := NormalizeWith("pi", raw, time.Now(), nil, Rules{ResultFilesAnyTool: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range recs {
+			if r.EventType == "file.modified" {
+				t.Errorf("%s: unexpected file.modified %s", name, r.Payload)
+			}
+		}
+	}
+}
+
+// Without ResolveInputPaths a file tool's own path is recorded as the agent
+// sent it, which is what Claude Code and omp do.
+func TestDefaultRulesKeepInputPathsVerbatim(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"session_id": "s", "cwd": "/tmp/work", "hook_event_name": "PostToolUse",
+		"tool_name": "write", "tool_use_id": "call_1",
+		"tool_input":    map[string]any{"path": "note.txt", "content": "x"},
+		"tool_response": map[string]any{"output": "ok"},
+	})
+	recs, err := NormalizeWith("claude-code", raw, time.Now(), nil, Rules{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range recs {
+		if r.EventType != "file.modified" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(r.Payload, &p); err != nil {
+			t.Fatal(err)
+		}
+		if p["path"] != "note.txt" {
+			t.Errorf("path = %v", p["path"])
+		}
+	}
+}
