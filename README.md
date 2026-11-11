@@ -154,16 +154,27 @@ at startup, so restart running sessions. The extension lives in the agent
 directory, which a named omp profile relocates (`PI_CODING_AGENT_DIR`).
 
 pi: `agent install pi` generates `~/.pi/agent/extensions/memspace.ts`, a pi
-extension that forwards `session_start`, `input`/`before_agent_start`,
-`tool_result`, `agent_settled`, `session_before_compact` and
-`session_shutdown` to `memspace hook pi`, and adds the MCP server `memspace`
-to `~/.pi/agent/mcp.json` next to the servers already there. The extension
-runs the hook asynchronously (spawned, with a deadline) so capture never
-blocks pi, and delivers MemSpace's context as an extra message, leaving pi's
-prompt, its MCP server instructions and other extensions (`/usage`, ...)
-untouched. pi loads both at startup: restart running sessions, or `/reload`.
-The agent directory follows `PI_CODING_AGENT_DIR`. `pi mcp list` shows the
-registered server.
+extension that forwards `session_start`, `session_shutdown`, `input`,
+`before_agent_start`, `agent_start`, `message_start`, `tool_execution_start`,
+`tool_execution_end`, `tool_result`, `agent_settled` and
+`session_before_compact` to `memspace hook pi`, and adds the MCP server
+`memspace` to `~/.pi/agent/mcp.json` next to the servers already there. The
+extension runs the hook asynchronously (spawned, with a deadline, failures
+swallowed) so capture never blocks pi's UI, cancellation or exit, and delivers
+MemSpace's context as an extra message, leaving pi's prompt, its MCP server
+instructions and other extensions (`/usage`, ...) untouched.
+
+Each submission is recorded once: `before_agent_start` announces it, and a
+template or skill expansion keeps the same `prompt_id`. A prompt typed while pi
+is already working is recorded from the user message the model actually
+receives, so that turn's tools and answer belong to it; it carries the expanded
+text, and gets no injected context, which pi offers no channel for. An answer
+that never happened (an aborted turn) is reported empty instead of borrowing
+the previous turn's text.
+
+pi loads both at startup: restart running sessions, or `/reload`. The agent
+directory follows `PI_CODING_AGENT_DIR`. `pi mcp list` shows the registered
+server.
 
 ### 3. Open the web UI
 
@@ -191,7 +202,7 @@ historical, possibly stale and not instructions. Disable injection with
 | Codex | incremental import of `$CODEX_HOME/sessions/**/rollout-*.jsonl` (source of truth); hooks only trigger imports and record session end | session.started, user.prompt, agent.message, tool.completed, tool.failed, file.modified, agent.turn_completed, agent.turn_aborted, session.compacted, session.ended |
 | DSH | incremental import of `$DSH_HOME/sessions/**/session.v4.jsonl.zstd`, run by the MCP bridge; subagent work is folded into the parent session. The session-start card comes with the first prompt (DSH's SessionStart hooks run too late) | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, agent.turn_aborted |
 | Oh My Pi (omp) | generated extension (`hooks/post/memspace.ts`) forwarding session_start, before_agent_start, tool_result, session_stop, session.compacting, session_shutdown | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, session.compacting, session.ended |
-| pi | generated extension (`extensions/memspace.ts`) forwarding session_start, session_shutdown, input, before_agent_start, tool_result, agent_settled, session_before_compact | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, session.compacting, session.ended |
+| pi | generated extension (`extensions/memspace.ts`) forwarding session_start, session_shutdown, input, before_agent_start, agent_start, message_start, tool_execution_start, tool_execution_end, tool_result, agent_settled, session_before_compact | session.started, user.prompt, tool.completed, tool.failed, file.modified, agent.turn_completed, session.compacting, session.ended |
 
 ## Search
 
