@@ -216,7 +216,10 @@ use the approval steps above.
 memspace agent doctor
 ```
 
-Every line should be `✓`. Common `!` / `✗` lines:
+Every line should be `✓`. For pi, check the MCP server it registered as well:
+`pi mcp list` should print `memspace: connected` with the MemSpace tools.
+
+Common `!` / `✗` lines:
 
 | Doctor says | Fix |
 |---|---|
