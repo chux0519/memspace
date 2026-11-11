@@ -96,8 +96,8 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	var promptIDs []string
 	var prompts []map[string]any
 	var starts, ends []map[string]any
-	var tools, failures []map[string]any
-	var stop, compact map[string]any
+	var tools, failures, stops []map[string]any
+	var compact map[string]any
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -120,39 +120,54 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		case "SessionEnd":
 			ends = append(ends, payload)
 		case "Stop":
-			stop = payload
+			stops = append(stops, payload)
 		case "PreCompact":
 			compact = payload
 		}
 	}
 
-	// input, before_agent_start, retry, same text again, blocking check, steer.
-	if len(promptIDs) != 5 {
+	// Three prompts from input/before_agent_start (one retried, one repeated
+	// text), the blocking check, the queued message, the cancelled prompt and
+	// the steered message.
+	if len(promptIDs) != 7 {
 		t.Fatalf("prompt payloads = %v", promptIDs)
 	}
+	// The awaited prompt payloads arrive in order.
 	if promptIDs[0] == "" || promptIDs[0] != promptIDs[1] {
 		t.Errorf("retry changed the submission id: %v", promptIDs)
 	}
 	if promptIDs[2] == promptIDs[0] {
 		t.Errorf("two submissions share an id: %v", promptIDs)
 	}
-	if prompts[0]["prompt"] != "继续检查" {
-		t.Errorf("prompt text = %v", prompts[0]["prompt"])
+	if prompts[0]["prompt"] != "继续检查" || prompts[3]["prompt"] != "阻塞检查" {
+		t.Errorf("prompt texts = %v / %v", prompts[0]["prompt"], prompts[3]["prompt"])
 	}
-	// A run started by another extension is not a user submission, and a run
-	// started by a steered message is recorded even though it never reaches
-	// before_agent_start. Its payload is the only one that is not awaited.
-	var steer map[string]any
+	runPrompt := promptIDs[3] // the submission that started the run with tools
+	byText := map[string]map[string]any{}
 	for _, p := range prompts {
-		if p["prompt"] == "steer this" {
-			steer = p
+		text, _ := p["prompt"].(string)
+		if _, ok := byText[text]; !ok || text != "继续检查" {
+			byText[text] = p
 		}
 	}
-	if steer == nil || steer["prompt_id"] == promptIDs[2] || steer["prompt_id"] == "" {
+	// A run started by another extension is not a user submission; a queued or
+	// steered message is one, and never takes over the running submission.
+	queued, steer := byText["queued follow-up"], byText["steer this"]
+	if queued == nil || queued["prompt_id"] == "" || queued["prompt_id"] == runPrompt {
+		t.Errorf("queued submission = %v", queued)
+	}
+	if steer == nil || steer["prompt_id"] == "" || steer["prompt_id"] == runPrompt || steer["prompt_id"] == queued["prompt_id"] {
 		t.Errorf("steered submission = %v", steer)
 	}
+	if _, ok := byText["x"]; ok {
+		t.Error("a run started by another extension was recorded as a prompt")
+	}
+	cancelled := byText["取消的新问题"]
+	if cancelled == nil || cancelled["prompt_id"] == "" {
+		t.Fatalf("cancelled submission = %v", cancelled)
+	}
 
-	if len(tools) != 2 {
+	if len(tools) != 3 {
 		t.Fatalf("tool payloads = %v", tools)
 	}
 	// Hooks of parallel tool calls finish in no fixed order.
@@ -163,6 +178,13 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	bash, edit := byCall["call_1"], byCall["call_2"]
 	if bash == nil || edit == nil {
 		t.Fatalf("tool payloads = %v", tools)
+	}
+	// Every tool of the run carries the submission the run started with, even
+	// the one that finished after a follow-up was queued.
+	for _, call := range []string{"call_1", "call_2", "call_4"} {
+		if byCall[call]["prompt_id"] != runPrompt {
+			t.Errorf("%s prompt_id = %v, want the run's %v", call, byCall[call]["prompt_id"], runPrompt)
+		}
 	}
 	response, _ := bash["tool_response"].(map[string]any)
 	if response["output"] != "hi\n" || response["exitCode"] != float64(0) {
@@ -181,19 +203,32 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	if failures[0]["error"] != "boom" {
 		t.Errorf("error = %v", failures[0]["error"])
 	}
+	if failures[0]["prompt_id"] != runPrompt {
+		t.Errorf("failed tool prompt_id = %v, want the run's %v", failures[0]["prompt_id"], runPrompt)
+	}
 	if response, _ := failures[0]["tool_response"].(map[string]any); response["exitCode"] != float64(1) {
 		t.Errorf("failed tool lost its details: %v", failures[0]["tool_response"])
 	}
 
-	// agent_settled carries the last assistant message of the settled run.
-	if stop == nil {
-		t.Fatal("no agent.turn_completed payload")
+	// agent_settled carries the last assistant message of the run that settled.
+	if len(stops) != 2 {
+		t.Fatalf("agent.turn_completed payloads = %v", stops)
 	}
-	if stop["last_assistant_message"] != "DONE" {
-		t.Errorf("last_assistant_message = %v", stop["last_assistant_message"])
+	settled := map[string]map[string]any{}
+	for _, stop := range stops {
+		settled[asString(stop["prompt_id"])] = stop
 	}
-	if stop["prompt_id"] != promptIDs[3] {
-		t.Errorf("turn_completed prompt_id = %v, want %v", stop["prompt_id"], promptIDs[3])
+	if done := settled[runPrompt]; done == nil || done["last_assistant_message"] != "DONE" {
+		t.Errorf("settled run = %v", done)
+	}
+	// The cancelled run answered nothing; it must not report the previous run's
+	// answer under its own prompt id.
+	aborted := settled[asString(cancelled["prompt_id"])]
+	if aborted == nil {
+		t.Fatalf("no turn_completed for the cancelled run: %v", stops)
+	}
+	if aborted["last_assistant_message"] != "" {
+		t.Errorf("cancelled run reported %q", aborted["last_assistant_message"])
 	}
 	if compact == nil || compact["trigger"] != "auto" {
 		t.Errorf("compaction = %v", compact)
@@ -299,6 +334,7 @@ const interval = setInterval(() => {
 }, 10);
 await emit("input", { type: "input", text: "阻塞检查", source: "interactive" });
 await emit("before_agent_start", { type: "before_agent_start", messageType: "user", prompt: "阻塞检查" });
+await emit("agent_start", { type: "agent_start" });
 clearInterval(interval);
 
 await emit("tool_result", {
@@ -328,9 +364,30 @@ await emit("tool_result", {
 	details: { exitCode: 1 },
 	isError: true,
 });
+// A queued follow-up arrives while this run's tools are still executing: the
+// run's tools belong to the run's own submission, not to the queued message.
+await emit("input", { type: "input", text: "queued follow-up", source: "rpc", streamingBehavior: "followUp" });
+await emit("tool_result", {
+	type: "tool_result",
+	toolCallId: "call_4",
+	toolName: "bash",
+	input: { command: "echo late" },
+	content: [{ type: "text", text: "late\n" }],
+	details: { exitCode: 0 },
+	isError: false,
+});
 
 await emit("message_end", { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "DONE" }] } });
 await emit("agent_settled", { type: "agent_settled", aborted: false });
+
+// A new prompt is cancelled before it answers: an empty assistant message must
+// not report the previous run's answer for this submission.
+await emit("input", { type: "input", text: "取消的新问题", source: "interactive" });
+await emit("before_agent_start", { type: "before_agent_start", messageType: "user", prompt: "取消的新问题" });
+await emit("agent_start", { type: "agent_start" });
+await emit("message_end", { type: "message_end", message: { role: "assistant", content: [], stopReason: "aborted" } });
+await emit("agent_settled", { type: "agent_settled", aborted: true });
+
 await emit("session_before_compact", { type: "session_before_compact", reason: "threshold" });
 
 // A steered message continues the run in place and never reaches

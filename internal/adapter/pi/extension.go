@@ -127,12 +127,18 @@ function compactTrigger(reason) {
 }
 
 export default function memspace(pi) {
-	// The submission in flight, per session. A submission keeps its identity
-	// when before_agent_start runs again for it (a retry), but two identical
-	// prompts are two submissions and must both be recorded.
-	const submissions = new Map();
-	// The last assistant text per session, reported with agent_settled.
-	const lastAssistant = new Map();
+	// The submission that started the current run, per session. A submission
+	// keeps its identity when before_agent_start runs again for it (a retry),
+	// but two identical prompts are two submissions and must both be recorded.
+	// A message pi queued into the run in progress is not this submission: the
+	// tools still executing belong to the run that started them.
+	const active = new Map();
+	// A submission input minted that pi has not started a run for yet.
+	const pending = new Map();
+	// The assistant text of the current run, per session, reported with
+	// agent_settled. It is cleared when the run starts and never filled from an
+	// empty (aborted) message, so an answer is never carried into the next run.
+	const runAssistant = new Map();
 	// Sessions this instance already announced, so a session start that pi
 	// emits twice for the same reason (it does after /new and /resume) is
 	// recorded once. A replacement always builds a new instance, so a second
@@ -230,17 +236,28 @@ export default function memspace(pi) {
 		try {
 			const id = sessionId(ctx);
 			if (!id || !event || typeof event.text !== "string" || !event.text.trim()) return;
-			const submission = { text: event.text.trim(), id: randomUUID() };
-			submissions.set(id, submission);
+			const submission = { text: event.text.trim(), id: randomUUID(), recorded: false };
+			pending.set(id, submission);
 			// A steered or queued message is delivered into the run in progress
-			// and never reaches before_agent_start, so it is recorded here.
+			// and never reaches before_agent_start, so it is recorded here. It
+			// stays out of the run's own submission until a run starts for it.
 			if (event.streamingBehavior) {
+				submission.recorded = true;
 				fire(Object.assign(base(ctx, id, "UserPromptSubmit"), {
 					prompt: event.text,
 					prompt_id: submission.id,
 					transcript_path: sessionFile(ctx),
 				}));
 			}
+		} catch {}
+	});
+
+	// A run starts: nothing has answered yet, so an aborted or empty run cannot
+	// report the previous run's answer.
+	pi.on("agent_start", (_event, ctx) => {
+		try {
+			const id = sessionId(ctx);
+			if (id) runAssistant.delete(id);
 		} catch {}
 	});
 
@@ -253,11 +270,22 @@ export default function memspace(pi) {
 			if (!id || !event || event.messageType !== "user") return;
 			if (typeof event.prompt !== "string" || !event.prompt.trim()) return;
 			const prompt = event.prompt.trim();
-			let submission = submissions.get(id);
+			runAssistant.delete(id);
+			// The run belongs to the submission input minted for this text, or to
+			// the submission this run is retrying; anything else is a message whose
+			// input pi never reported.
+			let submission = pending.get(id);
+			pending.delete(id);
 			if (!submission || submission.text !== prompt) {
-				submission = { text: prompt, id: randomUUID() };
-				submissions.set(id, submission);
+				const current = active.get(id);
+				submission =
+					current && current.text === prompt
+						? current
+						: { text: prompt, id: randomUUID(), recorded: false };
 			}
+			active.set(id, submission);
+			// A queued message was already recorded when pi accepted it.
+			if (submission.recorded) return;
 			const out = await runHook(Object.assign(base(ctx, id, "UserPromptSubmit"), {
 				prompt: event.prompt,
 				prompt_id: submission.id,
@@ -281,7 +309,7 @@ export default function memspace(pi) {
 			// applied file list, ...) and the content body it returned.
 			const response = Object.assign({}, details);
 			if (text) response.output = text;
-			const submission = submissions.get(id);
+			const submission = active.get(id);
 			const payload = Object.assign(base(ctx, id, failed ? "PostToolUseFailure" : "PostToolUse"), {
 				tool_name: event.toolName,
 				tool_use_id: event.toolCallId,
@@ -299,8 +327,10 @@ export default function memspace(pi) {
 			const id = sessionId(ctx);
 			const message = event && event.message;
 			if (!id || !message || message.role !== "assistant") return;
+			// An aborted run ends with an empty message; that must not overwrite
+			// anything, and there is nothing to report for this run.
 			const text = textOf(message);
-			if (text) lastAssistant.set(id, text);
+			if (text) runAssistant.set(id, text);
 		} catch {}
 	});
 
@@ -310,9 +340,11 @@ export default function memspace(pi) {
 		try {
 			const id = sessionId(ctx);
 			if (!id) return;
-			const submission = submissions.get(id);
+			const submission = active.get(id);
+			const answer = runAssistant.get(id) || "";
+			runAssistant.delete(id);
 			fire(Object.assign(base(ctx, id, "Stop"), {
-				last_assistant_message: lastAssistant.get(id) || "",
+				last_assistant_message: answer,
 				prompt_id: submission ? submission.id : "",
 			}));
 		} catch {}
