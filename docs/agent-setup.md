@@ -1,6 +1,6 @@
 # Set up MemSpace on this machine — instructions for AI coding agents
 
-You are an AI coding agent (Claude Code, Codex, DeepSeek Harness, Oh My Pi, …) and the user asked you to
+You are an AI coding agent (Claude Code, Codex, DeepSeek Harness, Oh My Pi, pi, …) and the user asked you to
 set up MemSpace on the machine you are running on. MemSpace is a
 self-hosted memory server: this machine becomes a *device* whose agent
 sessions are captured and synced to the user's server, and whose agents
@@ -33,6 +33,9 @@ and clicks **Approve** in the web UI. If the user gave you an invite code
     `~/.omp/agent/hooks/post/memspace.ts` and an MCP server in
     `~/.omp/agent/mcp.json` (the agent directory follows
     `PI_CODING_AGENT_DIR` and named profiles)
+  - pi: the generated extension `~/.pi/agent/extensions/memspace.ts` and an
+    MCP server `memspace` in `~/.pi/agent/mcp.json` (the agent directory
+    follows `PI_CODING_AGENT_DIR`)
 - **Never print or repeat secrets**: do not `cat` `~/.memspace/credentials.json`
   or files under `~/.memspace/state/`, and do not run `memspace mcp token`.
 - Do not approve this device yourself unless the user explicitly says so.
@@ -135,10 +138,11 @@ profile; hooks do not need it on `PATH`.
 ## 5. Make the agent CLIs visible
 
 `onboard` sets up every agent it finds on `PATH` (it calls `claude` and
-`codex` to register MCP, and reads `dsh --version` / `omp --version`):
+`codex` to register MCP, and reads `dsh --version` / `omp --version` /
+`pi --version`):
 
 ```bash
-command -v claude codex dsh omp
+command -v claude codex dsh omp pi
 ```
 
 If an agent the user has is not found, it is usually installed through nvm
@@ -152,8 +156,8 @@ If Codex is installed, ask the user whether to pass `--trust`: Codex only
 runs hooks the user has reviewed, and `--trust` records that review for
 MemSpace's hooks (otherwise they approve them in Codex's `/hooks`). Add
 `--name <name>` to choose the device name (default: host name), and
-`--agent claude`, `--agent codex`, `--agent dsh` or `--agent omp` to set up
-only some agents.
+`--agent claude`, `--agent codex`, `--agent dsh`, `--agent omp` or
+`--agent pi` to set up only some agents.
 
 **6a. Ask to join.** `--wait 0` shows the code and exits at once
 (status 3), so you can relay it:
@@ -216,7 +220,7 @@ Every line should be `✓`. Common `!` / `✗` lines:
 
 | Doctor says | Fix |
 |---|---|
-| `mcp: not registered` | the agent CLI was not on `PATH` during step 6: fix `PATH` (step 5), then `memspace agent install claude` (or `codex`, `dsh`, `omp`) |
+| `mcp: not registered` | the agent CLI was not on `PATH` during step 6: fix `PATH` (step 5), then `memspace agent install claude` (or `codex`, `dsh`, `omp`, `pi`) |
 | `hook trust` (Codex) | `memspace agent install codex --trust` after asking the user, or approve in Codex's `/hooks` |
 | `server` unreachable | check step 1; MemSpace itself never sends requests for private addresses through a proxy |
 | `semantic search` disabled or failing | server-side and optional; keyword search works. Mention it to the user, nothing to do here |
@@ -238,8 +242,9 @@ Tell the user:
 - what was installed and which files changed (from the rules above);
 - the doctor summary;
 - that hooks load when a session starts: **this current session is not
-  captured**; new Claude Code / Codex / omp sessions are. DSH must be
-  restarted to load MemSpace (its web profile reloads on its own);
+  captured**; new Claude Code / Codex / omp / pi sessions are. DSH must be
+  restarted to load MemSpace (its web profile reloads on its own); pi picks
+  the extension up on its next session or `/reload`;
 - how to look around: `memspace ui` opens the web UI signed in (read-only),
   `memspace search <query>` searches history, `memspace client status`
   shows sync state.

@@ -70,7 +70,7 @@ running setup should do this, so they can relay the code).`,
 				}
 			}
 			if len(agents) == 0 {
-				fmt.Println("No supported agents found (claude, codex, dsh, omp); install one and run 'memspace agent install <agent>'.")
+				fmt.Println("No supported agents found (claude, codex, dsh, omp, pi); install one and run 'memspace agent install <agent>'.")
 			}
 			for _, n := range agents {
 				a, err := lookupAdapter(cfg, n)
@@ -104,7 +104,7 @@ running setup should do this, so they can relay the code).`,
 	cmd.Flags().StringVar(&invite, "invite", "", "one-time invite code (or $MEMSPACE_INVITE); without one, ask for approval")
 	cmd.Flags().DurationVar(&wait, "wait", 10*time.Minute, "how long to wait for approval (0: show the code and exit)")
 	cmd.Flags().StringVar(&name, "name", "", "device name (default hostname)")
-	cmd.Flags().StringSliceVar(&agents, "agent", nil, "agents to set up (claude, codex, dsh, omp; default: detected)")
+	cmd.Flags().StringSliceVar(&agents, "agent", nil, "agents to set up (claude, codex, dsh, omp, pi; default: detected)")
 	cmd.Flags().BoolVar(&trust, "trust", false, "codex: mark MemSpace hooks as reviewed")
 	cmd.Flags().StringVar(&bin, "bin", "", "memspace binary path for hooks (default this executable)")
 	return cmd

@@ -19,6 +19,7 @@ import (
 	"github.com/chux0519/memspace/internal/adapter/codex"
 	"github.com/chux0519/memspace/internal/adapter/dsh"
 	"github.com/chux0519/memspace/internal/adapter/omp"
+	"github.com/chux0519/memspace/internal/adapter/pi"
 	"github.com/chux0519/memspace/internal/client"
 	"github.com/chux0519/memspace/internal/config"
 	"github.com/chux0519/memspace/internal/inject"
@@ -30,7 +31,7 @@ import (
 func agentCmd(use string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   use,
-		Short: "Install, remove and check coding-agent integrations (claude, codex, dsh, omp)",
+		Short: "Install, remove and check coding-agent integrations (claude, codex, dsh, omp, pi)",
 	}
 	if use != "agent" {
 		cmd.Hidden = true
@@ -149,7 +150,7 @@ func agentInstallCmd() *cobra.Command {
 	var bin string
 	var trust, noMCP bool
 	cmd := &cobra.Command{
-		Use:   "install <claude|codex|dsh|omp>",
+		Use:   "install <claude|codex|dsh|omp|pi>",
 		Short: "Register MemSpace hooks with an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -194,7 +195,7 @@ func agentInstallCmd() *cobra.Command {
 
 func agentUninstallCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "uninstall <claude|codex|dsh|omp>",
+		Use:   "uninstall <claude|codex|dsh|omp|pi>",
 		Short: "Remove MemSpace hooks from an agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -216,7 +217,7 @@ func agentUninstallCmd() *cobra.Command {
 
 func agentDoctorCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "doctor [claude|codex|dsh|omp]...",
+		Use:   "doctor [claude|codex|dsh|omp|pi]...",
 		Short: "Check that capture and upload work end to end",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
@@ -460,6 +461,8 @@ func agentType(a adapter.Adapter) string {
 		return dsh.AgentType
 	case *omp.Adapter:
 		return omp.AgentType
+	case *pi.Adapter:
+		return pi.AgentType
 	}
 	return claudecode.AgentType
 }

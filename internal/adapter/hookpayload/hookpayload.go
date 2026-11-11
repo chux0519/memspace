@@ -1,8 +1,8 @@
 // Package hookpayload normalizes the hook payloads MemSpace's hook-based
 // agents send on stdin into spool records.
 //
-// Claude Code defines this payload shape; DSH's hook bridge and the OMP
-// extension reuse it, so one normalizer serves every hook-based adapter. The
+// Claude Code defines this payload shape; DSH's hook bridge and the omp and pi
+// extensions reuse it, so one normalizer serves every hook-based adapter. The
 // agent_type stored on sessions is the caller's, not the shape's.
 package hookpayload
 
@@ -46,11 +46,31 @@ type Input struct {
 	CustomInstructions   string         `json:"custom_instructions"`
 }
 
+// Rules are the agent-specific deviations from the shared payload rules. The
+// zero value is what Claude Code, DSH and omp send.
+type Rules struct {
+	// ResultFilesAnyTool makes a tool result that names the files it changed
+	// and states whether it applied them authoritative for every tool, not only
+	// for known file tools. pi has no dispatch layer, so an extension or MCP
+	// tool that rewrites several files reports them in its own result.
+	ResultFilesAnyTool bool
+	// ResolveInputPaths completes a file tool's own relative path with the
+	// session cwd. pi's tools accept relative paths; Claude Code and omp send
+	// absolute ones, so their events are unchanged.
+	ResolveInputPaths bool
+}
+
 // Normalize maps one hook invocation to MemSpace events for agentType.
 // Unknown or uninteresting hook events yield no events. projectDir resolves
 // the directory that identifies the session's project; nil means the
 // payload's cwd.
 func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd string) string) ([]spool.Record, error) {
+	return NormalizeWith(agentType, raw, now, projectDir, Rules{})
+}
+
+// NormalizeWith is Normalize with agent-specific rules. The payload shape is
+// the same for every hook-based agent.
+func NormalizeWith(agentType string, raw []byte, now time.Time, projectDir func(cwd string) string, rules Rules) ([]spool.Record, error) {
 	var in Input
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, fmt.Errorf("%s hook: parse input: %w", agentType, err)
@@ -94,8 +114,8 @@ func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd 
 
 	case "PostToolUse", "PostToolUseFailure":
 		failed := in.HookEventName == "PostToolUseFailure"
-		files := AppliedFiles(in.ToolName, in.ToolInput, in.ToolResponse, in.Cwd)
-		referenced := ReferencedFiles(in.ToolName, in.ToolInput, in.ToolResponse, in.Cwd)
+		files := appliedFiles(in.ToolName, in.ToolInput, in.ToolResponse, in.Cwd, rules)
+		referenced := referencedFiles(in.ToolName, in.ToolInput, in.ToolResponse, in.Cwd, rules)
 		sensitive := sensitiveInput(in.ToolInput, referenced)
 		toolInput, response := sanitizeTool(in.ToolInput, in.ToolResponse, sensitive)
 		p := map[string]any{
@@ -112,6 +132,11 @@ func Normalize(agentType string, raw []byte, now time.Time, projectDir func(cwd 
 				p["error"] = adapter.OmittedSensitive
 			}
 			p["is_interrupt"] = in.IsInterrupt
+			// Agents that report details for a failed tool keep them next to the
+			// error; the content body comes from error, so neither part is lost.
+			if in.ToolResponse != nil {
+				p["tool_response"] = response
+			}
 		} else {
 			p["tool_response"] = response
 		}
@@ -180,8 +205,12 @@ func IsFileTool(name string) bool { return fileTools[strings.ToLower(name)] }
 // is never recorded as a changed file. Every other file tool names its single
 // target in the input.
 func AppliedFiles(name string, toolInput map[string]any, response any, cwd string) []string {
-	if resultAuthoritative(name, response) {
-		if _, applied, ok := resultFiles(name, response); ok {
+	return appliedFiles(name, toolInput, response, cwd, Rules{})
+}
+
+func appliedFiles(name string, toolInput map[string]any, response any, cwd string, rules Rules) []string {
+	if resultAuthoritative(name, response, rules) {
+		if _, applied, ok := resultFiles(name, response, rules); ok {
 			return resolvePaths(cwd, applied)
 		}
 	}
@@ -193,6 +222,9 @@ func AppliedFiles(name string, toolInput map[string]any, response any, cwd strin
 	if p == "" || isInternalURL(p) {
 		return nil
 	}
+	if rules.ResolveInputPaths {
+		return resolvePaths(cwd, []string{p})
+	}
 	return []string{p}
 }
 
@@ -200,9 +232,13 @@ func AppliedFiles(name string, toolInput map[string]any, response any, cwd strin
 // ast_edit preview would touch. Sensitivity checks use it so staged edits of
 // secret files are redacted even before they are applied.
 func ReferencedFiles(name string, toolInput map[string]any, response any, cwd string) []string {
+	return referencedFiles(name, toolInput, response, cwd, Rules{})
+}
+
+func referencedFiles(name string, toolInput map[string]any, response any, cwd string, rules Rules) []string {
 	files := pathsOf(toolInput)
-	if resultAuthoritative(name, response) {
-		if all, _, ok := resultFiles(name, response); ok {
+	if resultAuthoritative(name, response, rules) {
+		if all, _, ok := resultFiles(name, response, rules); ok {
 			files = append(files, all...)
 		}
 	}
@@ -212,25 +248,44 @@ func ReferencedFiles(name string, toolInput map[string]any, response any, cwd st
 // resultAuthoritative reports whether the response, not the input, names the
 // files a tool changed. That is true for xd:// dispatch results and for
 // ast_edit's applied/preview details; a plain write reports bytes, not paths.
-func resultAuthoritative(name string, response any) bool {
+func resultAuthoritative(name string, response any, rules Rules) bool {
 	if m, _ := response.(map[string]any); m != nil {
 		if _, ok := xdevSourceDetails(m); ok {
+			return true
+		}
+		if rules.ResultFilesAnyTool && appliedFileReport(m) {
 			return true
 		}
 	}
 	return strings.EqualFold(name, "ast_edit")
 }
 
+// appliedFileReport reports whether a tool result names the files it changed
+// and says whether it changed them at all. Agents without a dispatch layer
+// report multi-file tools this way: {files, applied} or
+// {files, totalReplacements}. Requiring the application flag keeps a tool that
+// merely lists files (a search, say) from looking like a writer.
+func appliedFileReport(m map[string]any) bool {
+	if len(stringList(m["files"])) == 0 {
+		if _, ok := m["fileReplacements"].([]any); !ok {
+			return false
+		}
+	}
+	_, hasApplied := m["applied"]
+	_, hasTotal := m["totalReplacements"]
+	return hasApplied || hasTotal
+}
+
 // resultFiles extracts the files and applied files from a structured tool
 // result, unwrapping an xd:// dispatch when present.
-func resultFiles(name string, response any) (all, applied []string, ok bool) {
+func resultFiles(name string, response any, rules Rules) (all, applied []string, ok bool) {
 	m, _ := response.(map[string]any)
 	if m == nil {
 		return nil, nil, false
 	}
 	if inner, found := xdevSourceDetails(m); found {
 		m = inner
-	} else if !IsFileTool(name) {
+	} else if !IsFileTool(name) && !(rules.ResultFilesAnyTool && appliedFileReport(m)) {
 		return nil, nil, false
 	}
 	files := stringList(m["files"])
