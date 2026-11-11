@@ -96,6 +96,9 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	for _, r := range result.Returns {
 		injected[r.Prompt] = injected[r.Prompt] || r.Injected
 	}
+	if !injected["Expanded opening task"] {
+		t.Errorf("the template prompt was not injected: %v", result.Returns)
+	}
 	if !injected["重投的问题"] {
 		t.Errorf("a resubmitted prompt after a cancelled queue was not injected: %v", result.Returns)
 	}
@@ -135,8 +138,23 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		}
 	}
 
-	if len(prompts) != 10 {
+	if len(prompts) != 12 {
 		t.Fatalf("prompt payloads = %v", prompts)
+	}
+	// A template submitted while idle is one submission: the text before_agent_start
+	// announced, recorded once (plus its retry under the same id), and its opening
+	// message is not recorded again.
+	var expandedOpening []string
+	for _, p := range prompts {
+		switch asString(p["prompt"]) {
+		case "Expanded opening task":
+			expandedOpening = append(expandedOpening, asString(p["prompt_id"]))
+		case "/opening":
+			t.Errorf("the raw template command was recorded: %v", p)
+		}
+	}
+	if len(expandedOpening) != 2 || expandedOpening[0] != expandedOpening[1] {
+		t.Errorf("the expanded opening prompt was recorded as %v", expandedOpening)
 	}
 	byText := map[string]map[string]any{}
 	var repeated []string
@@ -179,7 +197,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		t.Error("the expanded queued message shares the running turn's id")
 	}
 
-	if len(tools) != 5 {
+	if len(tools) != 6 {
 		t.Fatalf("tool payloads = %v", tools)
 	}
 	// Hooks of parallel tool calls finish in no fixed order.
@@ -190,6 +208,10 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	bash, edit := byCall["call_1"], byCall["call_2"]
 	if bash == nil || edit == nil {
 		t.Fatalf("tool payloads = %v", tools)
+	}
+	// The template run's tool belongs to the one submission it was recorded as.
+	if got, want := byCall["call_0"]["prompt_id"], id(t, "Expanded opening task"); got != want {
+		t.Errorf("call_0 prompt_id = %v, want %v", got, want)
 	}
 	// Every tool of the run carries its own submission, including the one that
 	// finished after a queued message was rejected.
@@ -226,7 +248,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 
 	// One agent.turn_completed per settled run, with the answer that run
 	// produced and the submission it belongs to.
-	if len(stops) != 5 {
+	if len(stops) != 6 {
 		t.Fatalf("agent.turn_completed payloads = %v", stops)
 	}
 	settled := map[string]string{}
@@ -234,6 +256,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		settled[asString(stop["prompt_id"])] = asString(stop["last_assistant_message"])
 	}
 	for _, want := range []struct{ prompt, answer string }{
+		{id(t, "Expanded opening task"), "ANSWER-OPENING"},
 		{runPrompt, "DONE"},
 		{id(t, "取消的新问题"), ""},
 		{expanded, "ANSWER-QUEUED"},
@@ -352,6 +375,41 @@ const openRun = async (prompt) => {
 
 await emit("session_start", { type: "session_start", reason: "startup" });
 const sentAtStartReturn = sent.length;
+
+// A template submitted while idle: pi expands it before the run, so input and
+// before_agent_start disagree on the text. It is one submission, recorded once,
+// and the run's opening message must not be recorded again.
+await emit("input", { type: "input", text: "/opening", source: "interactive" });
+const templateRun = await emit("before_agent_start", {
+	type: "before_agent_start",
+	messageType: "user",
+	prompt: "Expanded opening task",
+});
+returns.push({ prompt: "Expanded opening task", injected: Boolean(templateRun && templateRun.message) });
+await emit("agent_start", { type: "agent_start" });
+await emit("message_start", {
+	type: "message_start",
+	message: { role: "user", content: [{ type: "text", text: "Expanded opening task" }] },
+});
+// A retry of that run must keep the identity the announced text now names.
+const templateRetry = await emit("before_agent_start", {
+	type: "before_agent_start",
+	messageType: "user",
+	prompt: "Expanded opening task",
+});
+returns.push({ prompt: "Expanded opening task", injected: Boolean(templateRetry && templateRetry.message) });
+await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "call_0", toolName: "bash" });
+await emit("tool_result", {
+	type: "tool_result",
+	toolCallId: "call_0",
+	toolName: "bash",
+	input: { command: "echo expanded" },
+	content: [{ type: "text", text: "expanded\n" }],
+	details: { exitCode: 0 },
+	isError: false,
+});
+await emit("message_end", { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "ANSWER-OPENING" }] } });
+await emit("agent_settled", { type: "agent_settled", aborted: false });
 
 // One submission, retried: the retry reuses its identity.
 await openRun("继续检查");

@@ -142,9 +142,11 @@ export default function memspace(pi) {
 	// picked up by a later, unrelated run.
 	let seq = 0;
 	const boundary = new Map();
-	// Sessions whose current run has already shown the user message it starts
-	// with, so a later user message in the same run is a queued one.
-	const opening = new Set();
+	// Sessions whose next user message is the prompt before_agent_start already
+	// announced. pi delivers that prompt as the run's first message, and a
+	// template or an input handler may have changed its text since input, so it
+	// is recognised by position and never recorded twice.
+	const openingExpected = new Set();
 	// The submission a tool call belongs to, bound when the call starts: a tool
 	// that finishes after a queued message was accepted still belongs to the
 	// turn that called it.
@@ -293,7 +295,6 @@ export default function memspace(pi) {
 			const id = sessionId(ctx);
 			if (!id) return;
 			runAssistant.delete(id);
-			opening.delete(id);
 			boundary.set(id, seq);
 		} catch {}
 	});
@@ -303,21 +304,31 @@ export default function memspace(pi) {
 			const id = sessionId(ctx);
 			// messageType "user" is a prompt (typed, RPC, or sendUserMessage);
 			// "custom" is another extension starting a run, which is not a user
-			// submission.
-			if (!id || !event || event.messageType !== "user") return;
+			// submission and announces no prompt of ours.
+			if (!id || !event) return;
+			if (event.messageType !== "user") {
+				openingExpected.delete(id);
+				return;
+			}
 			if (typeof event.prompt !== "string" || !event.prompt.trim()) return;
 			const prompt = event.prompt.trim();
 			runAssistant.delete(id);
+			const previous = active.get(id);
 			// The run belongs to the submission input minted for it, or to the
 			// submission this run is retrying; anything else is a message whose
 			// input pi never reported.
 			let submission = takePending(id, prompt);
 			if (!submission) {
-				const current = active.get(id);
 				submission =
-					current && current.text === prompt ? current : { text: prompt, id: randomUUID(), seq: (seq += 1) };
+					previous && previous.text === prompt ? previous : { text: prompt, id: randomUUID(), seq: (seq += 1) };
 			}
+			// Keep the text this run was announced with, so a retry still matches it
+			// after a template, a skill or an input handler rewrote it.
+			submission.text = prompt;
 			active.set(id, submission);
+			// A retried run has already delivered its opening message.
+			if (submission === previous) openingExpected.delete(id);
+			else openingExpected.add(id);
 			const out = await runHook(Object.assign(base(ctx, id, "UserPromptSubmit"), {
 				prompt: event.prompt,
 				prompt_id: submission.id,
@@ -341,12 +352,12 @@ export default function memspace(pi) {
 			const message = event && event.message;
 			if (!id || !message || message.role !== "user") return;
 			const text = textOf(message).trim();
-			if (!opening.has(id)) {
-				opening.add(id);
-				// The run's own prompt was announced by before_agent_start; only a
-				// message that does not match it arrived later.
-				const current = active.get(id);
-				if (!current || current.text === text) return;
+			if (openingExpected.has(id)) {
+				// The prompt before_agent_start announced, delivered as the run's first
+				// message: already recorded under its own submission, whatever text pi
+				// or an input handler produced.
+				openingExpected.delete(id);
+				return;
 			}
 			const submission = { text, id: randomUUID(), seq: (seq += 1) };
 			active.set(id, submission);
@@ -418,6 +429,7 @@ export default function memspace(pi) {
 			const id = sessionId(ctx);
 			if (!id) return;
 			boundary.set(id, seq);
+			openingExpected.delete(id);
 			const submission = active.get(id);
 			const answer = runAssistant.get(id) || "";
 			runAssistant.delete(id);
