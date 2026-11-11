@@ -128,16 +128,23 @@ function compactTrigger(reason) {
 }
 
 export default function memspace(pi) {
-	// The submission that started the current run, per session. A submission
-	// keeps its identity when before_agent_start runs again for it (a retry),
-	// but two identical prompts are two submissions and must both be recorded.
-	// A message pi queued into the run in progress is not this submission: the
-	// tools still executing belong to the run that started them.
+	// The submission that owns the current turn, per session. A submission keeps
+	// its identity when before_agent_start runs again for it (a retry), but two
+	// identical prompts are two submissions and must both be recorded.
 	const active = new Map();
-	// Submissions input minted that no run has accepted yet, oldest first. A
-	// follow-up is accepted inside the run in progress, without a new
-	// before_agent_start, so the queue can hold several messages at once.
+	// Submissions input minted for a run that pi has not started yet, newest
+	// last. Only a prompt submitted while pi is idle becomes a candidate here;
+	// a queued or steered message is recorded when the model actually receives
+	// it, because its text (templates, skills) and its run are only known then.
 	const pending = new Map();
+	// A candidate is fresh for the next run only when it was minted after the
+	// previous run boundary: a prompt that was cancelled in between must not be
+	// picked up by a later, unrelated run.
+	let seq = 0;
+	const boundary = new Map();
+	// Sessions whose current run has already shown the user message it starts
+	// with, so a later user message in the same run is a queued one.
+	const opening = new Set();
 	// The submission a tool call belongs to, bound when the call starts: a tool
 	// that finishes after a queued message was accepted still belongs to the
 	// turn that called it.
@@ -180,23 +187,28 @@ export default function memspace(pi) {
 		hook_event_name: event,
 	});
 
-	// takePending removes the oldest queued submission for this session whose
-	// text matches, and returns it. A message pi queued is promoted this way when
-	// pi actually accepts it, so its own tools and answer follow it.
+	// takePending returns the candidate this run is for: the newest one that
+	// still has the text before_agent_start reports, or, when the text changed
+	// (a template or skill expanded, an input handler rewrote it), simply the
+	// newest fresh one. Candidates from before the last run boundary are
+	// dropped: they were never used, so no later run owns them.
 	const takePending = (id, text) => {
 		const queue = pending.get(id);
 		if (!queue || !queue.length) return null;
-		const index = text ? queue.findIndex((s) => s.text === text) : 0;
-		if (index < 0) return null;
-		const submission = queue.splice(index, 1)[0];
-		if (!queue.length) pending.delete(id);
-		return submission;
-	};
-	const queueSubmission = (id, submission) => {
-		const queue = pending.get(id) || [];
-		queue.push(submission);
-		// Bound: a submission that never reaches a run must not pile up.
-		pending.set(id, queue.slice(-16));
+		const cutoff = boundary.get(id) || 0;
+		const live = queue.filter((s) => s.seq > cutoff);
+		pending.delete(id);
+		if (!live.length) return null;
+		let chosen = live[live.length - 1];
+		for (let i = live.length - 1; i >= 0; i -= 1) {
+			if (live[i].text === text) {
+				chosen = live[i];
+				break;
+			}
+		}
+		const rest = live.filter((s) => s !== chosen);
+		if (rest.length) pending.set(id, rest);
+		return chosen;
 	};
 
 	// Records a session boundary and queues its hand-off card. pi reports
@@ -262,19 +274,15 @@ export default function memspace(pi) {
 		try {
 			const id = sessionId(ctx);
 			if (!id || !event || typeof event.text !== "string" || !event.text.trim()) return;
-			const submission = { text: event.text.trim(), id: randomUUID(), recorded: false };
-			queueSubmission(id, submission);
-			// A steered or queued message is delivered into the run in progress
-			// and never reaches before_agent_start, so it is recorded here. It
-			// stays out of the run's own submission until a run starts for it.
-			if (event.streamingBehavior) {
-				submission.recorded = true;
-				fire(Object.assign(base(ctx, id, "UserPromptSubmit"), {
-					prompt: event.text,
-					prompt_id: submission.id,
-					transcript_path: sessionFile(ctx),
-				}));
-			}
+			// A message pi queues into the turn that is already running never
+			// reaches before_agent_start, and by the time the model sees it the text
+			// may be expanded from a template or skill. It is recorded from that
+			// actual message instead, so it is not a candidate here.
+			if (event.streamingBehavior) return;
+			const queue = pending.get(id) || [];
+			queue.push({ text: event.text.trim(), id: randomUUID(), seq: (seq += 1) });
+			// Bound: a prompt that never reaches a run must not pile up.
+			pending.set(id, queue.slice(-16));
 		} catch {}
 	});
 
@@ -283,7 +291,10 @@ export default function memspace(pi) {
 	pi.on("agent_start", (_event, ctx) => {
 		try {
 			const id = sessionId(ctx);
-			if (id) runAssistant.delete(id);
+			if (!id) return;
+			runAssistant.delete(id);
+			opening.delete(id);
+			boundary.set(id, seq);
 		} catch {}
 	});
 
@@ -297,22 +308,16 @@ export default function memspace(pi) {
 			if (typeof event.prompt !== "string" || !event.prompt.trim()) return;
 			const prompt = event.prompt.trim();
 			runAssistant.delete(id);
-			// The run belongs to the submission input minted for this text, or to
-			// the submission this run is retrying; anything else is a message whose
-			// input pi never reported. Queued messages left over are stale here:
-			// a new run never carries them.
+			// The run belongs to the submission input minted for it, or to the
+			// submission this run is retrying; anything else is a message whose
+			// input pi never reported.
 			let submission = takePending(id, prompt);
 			if (!submission) {
-				pending.delete(id);
 				const current = active.get(id);
 				submission =
-					current && current.text === prompt
-						? current
-						: { text: prompt, id: randomUUID(), recorded: false };
+					current && current.text === prompt ? current : { text: prompt, id: randomUUID(), seq: (seq += 1) };
 			}
 			active.set(id, submission);
-			// A queued message was already recorded when pi accepted it.
-			if (submission.recorded) return;
 			const out = await runHook(Object.assign(base(ctx, id, "UserPromptSubmit"), {
 				prompt: event.prompt,
 				prompt_id: submission.id,
@@ -324,19 +329,32 @@ export default function memspace(pi) {
 		} catch {}
 	});
 
-	// pi consumes queued follow-ups inside the run that is already going: no new
-	// before_agent_start and no new agent_start, only the user message itself.
-	// The submission becomes the run's own here, so its tools and its answer are
-	// recorded against it. Several messages merged into one request each promote
-	// in order, so the last one owns the turn, which is the truthful part: the
-	// earlier ones are recorded, not silently paired with someone else's answer.
+	// pi consumes queued and steered messages inside the run that is already
+	// going: no new before_agent_start and no new agent_start, only the user
+	// message itself, already expanded. This is the only reliable statement
+	// about what the model received, so the submission is minted here and owns
+	// the tools and the answer that follow. Several messages merged into one
+	// request are one such message: one prompt, no invented pairs.
 	pi.on("message_start", (event, ctx) => {
 		try {
 			const id = sessionId(ctx);
 			const message = event && event.message;
 			if (!id || !message || message.role !== "user") return;
-			const submission = takePending(id, textOf(message).trim());
-			if (submission) active.set(id, submission);
+			const text = textOf(message).trim();
+			if (!opening.has(id)) {
+				opening.add(id);
+				// The run's own prompt was announced by before_agent_start; only a
+				// message that does not match it arrived later.
+				const current = active.get(id);
+				if (!current || current.text === text) return;
+			}
+			const submission = { text, id: randomUUID(), seq: (seq += 1) };
+			active.set(id, submission);
+			fire(Object.assign(base(ctx, id, "UserPromptSubmit"), {
+				prompt: text,
+				prompt_id: submission.id,
+				transcript_path: sessionFile(ctx),
+			}));
 		} catch {}
 	});
 
@@ -399,6 +417,7 @@ export default function memspace(pi) {
 		try {
 			const id = sessionId(ctx);
 			if (!id) return;
+			boundary.set(id, seq);
 			const submission = active.get(id);
 			const answer = runAssistant.get(id) || "";
 			runAssistant.delete(id);
