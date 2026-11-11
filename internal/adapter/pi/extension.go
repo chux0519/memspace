@@ -119,7 +119,8 @@ function contentText(content) {
 }
 
 function textOf(message) {
-	return contentText(message && message.content);
+	const content = message && message.content;
+	return typeof content === "string" ? content : contentText(content);
 }
 
 function compactTrigger(reason) {
@@ -133,8 +134,14 @@ export default function memspace(pi) {
 	// A message pi queued into the run in progress is not this submission: the
 	// tools still executing belong to the run that started them.
 	const active = new Map();
-	// A submission input minted that pi has not started a run for yet.
+	// Submissions input minted that no run has accepted yet, oldest first. A
+	// follow-up is accepted inside the run in progress, without a new
+	// before_agent_start, so the queue can hold several messages at once.
 	const pending = new Map();
+	// The submission a tool call belongs to, bound when the call starts: a tool
+	// that finishes after a queued message was accepted still belongs to the
+	// turn that called it.
+	const toolOwner = new Map();
 	// The assistant text of the current run, per session, reported with
 	// agent_settled. It is cleared when the run starts and never filled from an
 	// empty (aborted) message, so an answer is never carried into the next run.
@@ -172,6 +179,25 @@ export default function memspace(pi) {
 		cwd: ctx.cwd || "",
 		hook_event_name: event,
 	});
+
+	// takePending removes the oldest queued submission for this session whose
+	// text matches, and returns it. A message pi queued is promoted this way when
+	// pi actually accepts it, so its own tools and answer follow it.
+	const takePending = (id, text) => {
+		const queue = pending.get(id);
+		if (!queue || !queue.length) return null;
+		const index = text ? queue.findIndex((s) => s.text === text) : 0;
+		if (index < 0) return null;
+		const submission = queue.splice(index, 1)[0];
+		if (!queue.length) pending.delete(id);
+		return submission;
+	};
+	const queueSubmission = (id, submission) => {
+		const queue = pending.get(id) || [];
+		queue.push(submission);
+		// Bound: a submission that never reaches a run must not pile up.
+		pending.set(id, queue.slice(-16));
+	};
 
 	// Records a session boundary and queues its hand-off card. pi reports
 	// "reload" for a runtime reload of the same session, which is neither a new
@@ -237,7 +263,7 @@ export default function memspace(pi) {
 			const id = sessionId(ctx);
 			if (!id || !event || typeof event.text !== "string" || !event.text.trim()) return;
 			const submission = { text: event.text.trim(), id: randomUUID(), recorded: false };
-			pending.set(id, submission);
+			queueSubmission(id, submission);
 			// A steered or queued message is delivered into the run in progress
 			// and never reaches before_agent_start, so it is recorded here. It
 			// stays out of the run's own submission until a run starts for it.
@@ -273,10 +299,11 @@ export default function memspace(pi) {
 			runAssistant.delete(id);
 			// The run belongs to the submission input minted for this text, or to
 			// the submission this run is retrying; anything else is a message whose
-			// input pi never reported.
-			let submission = pending.get(id);
-			pending.delete(id);
-			if (!submission || submission.text !== prompt) {
+			// input pi never reported. Queued messages left over are stale here:
+			// a new run never carries them.
+			let submission = takePending(id, prompt);
+			if (!submission) {
+				pending.delete(id);
 				const current = active.get(id);
 				submission =
 					current && current.text === prompt
@@ -297,6 +324,37 @@ export default function memspace(pi) {
 		} catch {}
 	});
 
+	// pi consumes queued follow-ups inside the run that is already going: no new
+	// before_agent_start and no new agent_start, only the user message itself.
+	// The submission becomes the run's own here, so its tools and its answer are
+	// recorded against it. Several messages merged into one request each promote
+	// in order, so the last one owns the turn, which is the truthful part: the
+	// earlier ones are recorded, not silently paired with someone else's answer.
+	pi.on("message_start", (event, ctx) => {
+		try {
+			const id = sessionId(ctx);
+			const message = event && event.message;
+			if (!id || !message || message.role !== "user") return;
+			const submission = takePending(id, textOf(message).trim());
+			if (submission) active.set(id, submission);
+		} catch {}
+	});
+
+	// A tool call belongs to the submission that was active when it started.
+	pi.on("tool_execution_start", (event, ctx) => {
+		try {
+			const id = sessionId(ctx);
+			const submission = id ? active.get(id) : null;
+			if (submission && event && event.toolCallId) toolOwner.set(event.toolCallId, submission.id);
+		} catch {}
+	});
+
+	pi.on("tool_execution_end", (event) => {
+		try {
+			if (event && event.toolCallId) toolOwner.delete(event.toolCallId);
+		} catch {}
+	});
+
 	pi.on("tool_result", (event, ctx) => {
 		try {
 			const id = sessionId(ctx);
@@ -310,11 +368,12 @@ export default function memspace(pi) {
 			const response = Object.assign({}, details);
 			if (text) response.output = text;
 			const submission = active.get(id);
+			const owner = toolOwner.get(event.toolCallId);
 			const payload = Object.assign(base(ctx, id, failed ? "PostToolUseFailure" : "PostToolUse"), {
 				tool_name: event.toolName,
 				tool_use_id: event.toolCallId,
 				tool_input: event.input || {},
-				prompt_id: submission ? submission.id : "",
+				prompt_id: owner || (submission ? submission.id : ""),
 			});
 			if (failed) payload.error = text;
 			payload.tool_response = response;

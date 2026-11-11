@@ -127,9 +127,10 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	}
 
 	// Three prompts from input/before_agent_start (one retried, one repeated
-	// text), the blocking check, the queued message, the cancelled prompt and
-	// the steered message.
-	if len(promptIDs) != 7 {
+	// text), the blocking check, the queued message, the cancelled prompt, the
+	// second question with its two accepted queued messages, and the steered
+	// message.
+	if len(promptIDs) != 10 {
 		t.Fatalf("prompt payloads = %v", promptIDs)
 	}
 	// The awaited prompt payloads arrive in order.
@@ -166,8 +167,16 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	if cancelled == nil || cancelled["prompt_id"] == "" {
 		t.Fatalf("cancelled submission = %v", cancelled)
 	}
+	second := byText["第二个问题"]
+	queued1, queued2 := byText["排队的问题1"], byText["排队的问题2"]
+	if second == nil || queued1 == nil || queued2 == nil {
+		t.Fatalf("submissions = %v", byText)
+	}
+	if queued1["prompt_id"] == queued2["prompt_id"] || queued1["prompt_id"] == second["prompt_id"] {
+		t.Errorf("queued submissions share an id: %v / %v", queued1["prompt_id"], queued2["prompt_id"])
+	}
 
-	if len(tools) != 3 {
+	if len(tools) != 5 {
 		t.Fatalf("tool payloads = %v", tools)
 	}
 	// Hooks of parallel tool calls finish in no fixed order.
@@ -180,11 +189,19 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 		t.Fatalf("tool payloads = %v", tools)
 	}
 	// Every tool of the run carries the submission the run started with, even
-	// the one that finished after a follow-up was queued.
+	// the one that finished after a follow-up was queued but not accepted.
 	for _, call := range []string{"call_1", "call_2", "call_4"} {
 		if byCall[call]["prompt_id"] != runPrompt {
 			t.Errorf("%s prompt_id = %v, want the run's %v", call, byCall[call]["prompt_id"], runPrompt)
 		}
+	}
+	// An accepted follow-up owns the tools of its own turn; the tool bound
+	// before it was accepted keeps the submission it started with.
+	if got, want := byCall["call_5"]["prompt_id"], second["prompt_id"]; got != want {
+		t.Errorf("call_5 prompt_id = %v, want %v", got, want)
+	}
+	if got, want := byCall["call_6"]["prompt_id"], queued2["prompt_id"]; got != want {
+		t.Errorf("call_6 prompt_id = %v, want %v", got, want)
 	}
 	response, _ := bash["tool_response"].(map[string]any)
 	if response["output"] != "hi\n" || response["exitCode"] != float64(0) {
@@ -211,7 +228,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	}
 
 	// agent_settled carries the last assistant message of the run that settled.
-	if len(stops) != 2 {
+	if len(stops) != 3 {
 		t.Fatalf("agent.turn_completed payloads = %v", stops)
 	}
 	settled := map[string]map[string]any{}
@@ -229,6 +246,11 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalCo
 	}
 	if aborted["last_assistant_message"] != "" {
 		t.Errorf("cancelled run reported %q", aborted["last_assistant_message"])
+	}
+	// The accepted queued message owns the answer of the turn it was merged into.
+	accepted := settled[asString(queued2["prompt_id"])]
+	if accepted == nil || accepted["last_assistant_message"] != "ANSWER-QUEUED" {
+		t.Errorf("accepted follow-up = %v", accepted)
 	}
 	if compact == nil || compact["trigger"] != "auto" {
 		t.Errorf("compaction = %v", compact)
@@ -387,6 +409,43 @@ await emit("before_agent_start", { type: "before_agent_start", messageType: "use
 await emit("agent_start", { type: "agent_start" });
 await emit("message_end", { type: "message_end", message: { role: "assistant", content: [], stopReason: "aborted" } });
 await emit("agent_settled", { type: "agent_settled", aborted: true });
+
+// A queued follow-up is accepted inside this run: pi writes the user message
+// into the conversation and continues, without before_agent_start or
+// agent_start. Everything after that belongs to the message that was accepted.
+await emit("input", { type: "input", text: "第二个问题", source: "interactive" });
+await emit("before_agent_start", { type: "before_agent_start", messageType: "user", prompt: "第二个问题" });
+await emit("agent_start", { type: "agent_start" });
+await emit("message_start", { type: "message_start", message: { role: "user", content: [{ type: "text", text: "第二个问题" }] } });
+await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "call_5", toolName: "bash" });
+// Two messages are queued and then accepted one after the other, while this
+// tool is still running: the tool keeps the submission it started with.
+await emit("input", { type: "input", text: "排队的问题1", source: "rpc", streamingBehavior: "followUp" });
+await emit("input", { type: "input", text: "排队的问题2", source: "rpc", streamingBehavior: "followUp" });
+await emit("message_start", { type: "message_start", message: { role: "user", content: [{ type: "text", text: "排队的问题1" }] } });
+await emit("message_start", { type: "message_start", message: { role: "user", content: [{ type: "text", text: "排队的问题2" }] } });
+await emit("tool_result", {
+	type: "tool_result",
+	toolCallId: "call_5",
+	toolName: "bash",
+	input: { command: "echo first" },
+	content: [{ type: "text", text: "first\n" }],
+	details: { exitCode: 0 },
+	isError: false,
+});
+await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "call_5", toolName: "bash", isError: false });
+await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "call_6", toolName: "review_tool" });
+await emit("tool_result", {
+	type: "tool_result",
+	toolCallId: "call_6",
+	toolName: "review_tool",
+	input: { subject: "queued" },
+	content: [{ type: "text", text: "reviewed\n" }],
+	details: { ok: true },
+	isError: false,
+});
+await emit("message_end", { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "ANSWER-QUEUED" }] } });
+await emit("agent_settled", { type: "agent_settled", aborted: false });
 
 await emit("session_before_compact", { type: "session_before_compact", reason: "threshold" });
 
